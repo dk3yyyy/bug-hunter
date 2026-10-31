@@ -179,6 +179,25 @@ export async function listExistingFingerprints(
   return out;
 }
 
+/** Create a repo webhook pointing at this server (Option B auto-connect). */
+export async function createRepoWebhook(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  url: string,
+  secret: string,
+): Promise<number> {
+  const { data } = await octokit.rest.repos.createWebhook({
+    owner,
+    repo,
+    name: "web",
+    active: true,
+    config: { url, content_type: "json", secret },
+    events: ["pull_request"],
+  });
+  return data.id;
+}
+
 /** Set a commit status (Option A can't create check runs) — SPEC §6, §13.3. Non-critical: never throws. */
 export async function setCommitStatus(
   octokit: Octokit,

@@ -19,6 +19,9 @@ const schema = z.object({
   GITHUB_APP_ID: z.string().default(""),
   GITHUB_APP_SLUG: z.string().default(""),
   GITHUB_PRIVATE_KEY_PATH: z.string().default("./private-key.pem"),
+  // Public base URL of this server (e.g. https://bug-hunter.example.com). Used
+  // by the auto-connect endpoint to register repo webhooks. Empty = auto-connect off.
+  PUBLIC_URL: z.string().default(""),
   GOOGLE_GENERATIVE_AI_API_KEY: z
     .string()
     .min(1, "GOOGLE_GENERATIVE_AI_API_KEY is required"),
