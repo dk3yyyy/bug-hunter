@@ -40,6 +40,7 @@ import {
 } from "./types";
 
 const app = new Hono();
+export { app };
 const webhooks = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET });
 const queue = new PQueue({ concurrency: 2 });
 
@@ -511,6 +512,11 @@ app.get("/api/hunts/:id", (c) => {
 app.get("/dashboard", (c) => c.html(renderDashboard([...hunts.values()])));
 app.get("/summoned", (c) => c.html(renderSummoned()));
 
-serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-  console.log(`🎃 Bug Hunter listening on http://localhost:${info.port}`);
-});
+// Only start the server when this file is run directly (not when imported by tests).
+import { fileURLToPath } from "node:url";
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+    console.log(`🎃 Bug Hunter listening on http://localhost:${info.port}`);
+  });
+}
