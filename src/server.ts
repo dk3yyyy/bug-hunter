@@ -21,6 +21,7 @@ import { annotateDiff } from "./diff/annotate";
 import { renderSeance } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
 import { hauntingToStatus, pendingStatus } from "./render/status";
+import { renderLanding, renderDashboard, renderSummoned } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel } from "./llm/models";
@@ -30,8 +31,7 @@ import {
   ReviewOutput,
   Verdict,
   SeanceOutput,
-  type HuntCounts,
-  type HauntingLevel,
+  type HuntRecord,
 } from "./types";
 
 const app = new Hono();
@@ -41,21 +41,6 @@ const queue = new PQueue({ concurrency: 2 });
 const seenDeliveries = new Set<string>();
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
-
-export interface HuntRecord {
-  id: string;
-  repo: string;
-  prNumber: number;
-  prTitle: string;
-  prUrl: string;
-  hauntingLevel: HauntingLevel;
-  counts: HuntCounts;
-  possessionAttempt: boolean;
-  exorcised: number;
-  keptCount: number;
-  topFindings: Array<{ severity: string; title: string; file: string; line: number }>;
-  finishedAt: string;
-}
 
 const hunts = new Map<string, HuntRecord>();
 
@@ -325,7 +310,7 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
 // Routes
 // ---------------------------------------------------------------------------
 
-app.get("/", (c) => c.text("🎃 Bug Hunter is running. Every PR is haunted."));
+app.get("/", (c) => c.html(renderLanding(env.LANDING_REPO_URL)));
 app.get("/health", (c) => c.json({ ok: true, queued: queue.size }));
 
 app.post("/webhooks/github", async (c) => {
@@ -404,19 +389,9 @@ app.get("/api/hunts/:id", (c) => {
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });
 
-// Minimal results dashboard (in-memory; Step 4).
-app.get("/dashboard", (c) => {
-  const rows = [...hunts.values()].slice(-50).reverse();
-  const stats = { hunts: rows.length, spirits: rows.reduce((a, r) => a + r.keptCount, 0), possessed: rows.filter((r) => r.possessionAttempt).length };
-  const body = `<!doctype html><meta charset="utf-8"><title>Bug Hunter 🎃</title>
-<style>body{background:#0f0a1a;color:#f5f0ff;font:14px/1.5 Inter,system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 24px}h1{font:28px Creepster,cursive}td,th{border-bottom:1px solid #2e2149;padding:8px 12px;text-align:left}code{color:#7cff6b}.muted{color:#a89cc8}</style>
-<h1>🎃 Bug Hunter — Dashboard</h1>
-<p class="muted">${stats.hunts} hunts · ${stats.spirits} spirits found · ${stats.possessed} possession attempts blocked</p>
-<table><thead><tr><th>Repo</th><th>PR</th><th>Title</th><th>Haunting</th><th>Spirits</th></tr></thead><tbody>
-${rows.map((r) => `<tr><td>${r.repo}</td><td><a href="${r.prUrl}">#${r.prNumber}</a></td><td>${r.prTitle.replace(/</g, "&lt;")}</td><td>${r.hauntingLevel}</td><td>${r.keptCount}</td></tr>`).join("")}
-</tbody></table>`;
-  return c.html(body);
-});
+// In-memory results dashboard (Step 4).
+app.get("/dashboard", (c) => c.html(renderDashboard([...hunts.values()])));
+app.get("/summoned", (c) => c.html(renderSummoned()));
 
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`🎃 Bug Hunter listening on http://localhost:${info.port}`);
