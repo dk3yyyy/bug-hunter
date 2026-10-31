@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isSelfEvent,
   isSkippedAuthor,
+  isTrustedCommander,
   prTarget,
   shouldHunt,
   parseCommand,
@@ -58,5 +59,17 @@ describe("webhook guards", () => {
     expect(b("@bughunter spellbook").kind).toBe("spellbook");
     expect(b("@bughunter do a dance").kind).toBe("unknown");
     expect(b("no mention here").kind).toBe("none");
+  });
+
+  it("trusts only collaborators+ for @bot commands", () => {
+    const cmd = (assoc?: string) => payload({ comment: { body: "@bughunter hunt", author_association: assoc } });
+    expect(isTrustedCommander(cmd("OWNER"))).toBe(true);
+    expect(isTrustedCommander(cmd("MEMBER"))).toBe(true);
+    expect(isTrustedCommander(cmd("COLLABORATOR"))).toBe(true);
+    expect(isTrustedCommander(cmd("member"))).toBe(true);
+    expect(isTrustedCommander(cmd("CONTRIBUTOR"))).toBe(false);
+    expect(isTrustedCommander(cmd("NONE"))).toBe(false);
+    expect(isTrustedCommander(cmd(undefined))).toBe(false);
+    expect(isTrustedCommander(payload())).toBe(false);
   });
 });

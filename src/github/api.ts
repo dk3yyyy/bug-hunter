@@ -1,6 +1,7 @@
 // GitHub REST calls used by the hunt (SPEC §6, §11).
 import type { Octokit } from "@octokit/rest";
 import { parsePatch } from "../diff/parse";
+import { findingMarkerRegex, seanceMarker } from "../render/theme";
 import type { ChangedFile } from "../types";
 
 export interface PrInfo {
@@ -88,21 +89,22 @@ export async function upsertSeance(
   pr: number,
   body: string,
 ): Promise<number> {
-  const marker = "<!-- bughunter:seance -->";
+  const marker = seanceMarker();
   const markedBody = body.includes(marker) ? body : `${marker}\n\n${body}`;
 
   let existingId: number | null = null;
-  for (let page = 1; page <= 5 && existingId === null; page += 1) {
-    const { data } = await octokit.rest.issues.listComments({
-      owner,
-      repo,
-      issue_number: pr,
-      per_page: 100,
-      page,
-    });
-    const found = data.find((c) => typeof c.body === "string" && c.body.includes(marker));
-    if (found) existingId = found.id;
-    if (data.length < 100) break;
+  const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: pr,
+    per_page: 100,
+  });
+  for await (const page of iterator) {
+    const found = page.data.find((c) => typeof c.body === "string" && c.body.includes(marker));
+    if (found) {
+      existingId = found.id;
+      break;
+    }
   }
 
   if (existingId !== null) {
@@ -155,7 +157,7 @@ export async function postInlineReview(
   });
 }
 
-const FINDING_MARKER = /<!--\s*bughunter:f=([a-f0-9]{40})\s*-->/g;
+const FINDING_MARKER = findingMarkerRegex();
 
 /** Fingerprints already posted as inline comments on this PR (for dedupe). */
 export async function listExistingFingerprints(
@@ -194,7 +196,8 @@ export async function createRepoWebhook(
     name: "web",
     active: true,
     config: { url, content_type: "json", secret },
-    events: ["pull_request"],
+    // pull_request drives hunts; issue_comment drives @bot hunt/seance/spellbook.
+    events: ["pull_request", "issue_comment"],
   });
   return data.id;
 }

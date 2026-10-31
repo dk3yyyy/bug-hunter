@@ -24,6 +24,27 @@ describe("scrubSecrets", () => {
     expect(out).toContain("[redacted]");
   });
 
+  it("redacts Anthropic, AWS, Slack and user-to-server tokens", () => {
+    // Fixtures are concatenated so this file contains no pushable secret literals.
+    const s = [
+      "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz1234567890",
+      "AKIA" + "IOSFODNN7EXAMPLE",
+      "xoxb-" + "123456789012-abcdefghijklmnopqrstuv",
+      "ghu_" + "abcdefghijklmnopqrstuvwxyz1234",
+    ].join(" ");
+    const out = scrubSecrets(s);
+    expect(out).not.toContain("sk-ant-");
+    expect(out).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(out).not.toContain("xoxb-");
+    expect(out).not.toContain("ghu_");
+  });
+
+  it("redacts generic key assignments but keeps the key name", () => {
+    const out = scrubSecrets('api_key = "supersecretvalue123"');
+    expect(out).toContain('api_key = "[redacted]"');
+    expect(out).not.toContain("supersecretvalue123");
+  });
+
   it("leaves normal text alone", () => {
     const text = "const x = 1; // a normal comment about keys";
     expect(scrubSecrets(text)).toBe(text);

@@ -46,7 +46,7 @@ export function resolveModelConfig(
       provider: "openrouter",
       model,
       apiKey: e.LLM_API_KEY,
-      baseUrl: "https://openrouter.ai/api/v1",
+      baseUrl: e.LLM_BASE_URL || "https://openrouter.ai/api/v1",
     };
   }
   if (e.LLM_PROVIDER === "opencode") {
@@ -62,7 +62,7 @@ export function resolveModelConfig(
       provider: "ollama",
       model,
       apiKey: e.LLM_API_KEY,
-      baseUrl: "http://localhost:11434/v1",
+      baseUrl: e.LLM_BASE_URL || "http://localhost:11434/v1",
     };
   }
   // openai and anthropic use their SDK defaults; only openai-compatible honors LLM_BASE_URL.
@@ -73,4 +73,24 @@ export function resolveModelConfig(
     return { provider: "anthropic", model, apiKey: e.LLM_API_KEY, baseUrl: "" };
   }
   return { provider: e.LLM_PROVIDER, model, apiKey: e.LLM_API_KEY, baseUrl: e.LLM_BASE_URL };
+}
+
+/** Human-facing provider name for report footers ("powered by …"). */
+export function providerDisplayName(p: LlmProvider): string {
+  switch (p) {
+    case "google":
+      return "Google Gemini";
+    case "openai":
+      return "OpenAI";
+    case "anthropic":
+      return "Claude";
+    case "opencode":
+      return "OpenCode Go";
+    case "openrouter":
+      return "OpenRouter";
+    case "ollama":
+      return "Ollama";
+    case "openai-compatible":
+      return "AI";
+  }
 }

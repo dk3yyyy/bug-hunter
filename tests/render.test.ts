@@ -6,7 +6,7 @@ import type {
   SeanceOutputT,
 } from "../src/types";
 import { computeHaunting } from "../src/render/theme";
-import { escapeHtml, langFromPath, renderSeance } from "../src/render/seance";
+import { escapeHtml, langFromPath, renderSeance, sanitizeFixCode } from "../src/render/seance";
 import { renderInline } from "../src/render/inline";
 import { hauntingToStatus } from "../src/render/status";
 
@@ -68,6 +68,18 @@ describe("langFromPath", () => {
 describe("escapeHtml", () => {
   it("escapes < > &", () => {
     expect(escapeHtml("<a>&</a>")).toBe("&lt;a&gt;&amp;&lt;/a&gt;");
+  });
+});
+
+describe("sanitizeFixCode", () => {
+  it("neutralizes fence closers so fix text cannot break out of code blocks", () => {
+    const out = sanitizeFixCode("const x = 1;\n```\n[Evil](https://evil.example)\n```");
+    expect(out).not.toContain("```");
+    expect(out).toContain("[Evil](https://evil.example)");
+  });
+
+  it("caps fix length", () => {
+    expect(sanitizeFixCode("x".repeat(5000)).length).toBeLessThanOrEqual(2000);
   });
 });
 
@@ -256,7 +268,7 @@ describe("renderInline", () => {
 });
 
 describe("hauntingToStatus", () => {
-  it("maps possessed to failure and everything else to success", () => {
+  it("maps possessed and haunted to failure, the rest to success", () => {
     const possessed = hauntingToStatus("possessed", {
       critical: 1,
       high: 2,
@@ -271,7 +283,7 @@ describe("hauntingToStatus", () => {
     });
 
     expect(hauntingToStatus("haunted", { critical: 0, high: 1, medium: 0, low: 0, nitpick: 0 }).state).toBe(
-      "success",
+      "failure",
     );
     expect(hauntingToStatus("restless", { critical: 0, high: 0, medium: 1, low: 0, nitpick: 0 }).state).toBe(
       "success",

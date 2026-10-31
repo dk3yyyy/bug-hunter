@@ -62,6 +62,15 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// Model-controlled fix text is rendered verbatim inside fences, so a fence
+// closer inside it would break out into live markdown. Neutralize fence runs
+// and cap the length.
+export const MAX_FIX_CODE_CHARS = 2000;
+
+export function sanitizeFixCode(code: string): string {
+  return code.replace(/`{3,}/g, "´´´").slice(0, MAX_FIX_CODE_CHARS);
+}
+
 // Escapes a markdown table cell: HTML chars plus the `|` separator.
 function tableCell(s: string): string {
   return escapeHtml(s).replace(/\|/g, "\\|");
@@ -82,6 +91,8 @@ export interface SeanceArgs {
   counts: HuntCounts;
   level: HauntingLevel;
   title: string;
+  /** Display name for the voice footer ("powered by …"). Defaults to "AI". */
+  provider?: string;
 }
 
 export function renderSeance(args: SeanceArgs): string {
@@ -175,7 +186,7 @@ export function renderSeance(args: SeanceArgs): string {
         lines.push(`<details><summary>${s.fix_label}</summary>`);
         lines.push("");
         lines.push("```" + langFromPath(f.file));
-        lines.push(f.fix_code);
+        lines.push(sanitizeFixCode(f.fix_code));
         lines.push("```");
         lines.push("</details>");
         lines.push("");
@@ -252,7 +263,11 @@ export function renderSeance(args: SeanceArgs): string {
 
   const shortSha = headSha.slice(0, 7);
   lines.push(
-    fillTemplate(s.footer, { effort: String(summary.effort), short_sha: shortSha }),
+    fillTemplate(s.footer, {
+      provider: escapeHtml(args.provider ?? "AI"),
+      effort: String(summary.effort),
+      short_sha: shortSha,
+    }),
   );
 
   return lines.join("\n");

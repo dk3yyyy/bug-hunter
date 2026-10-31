@@ -10,7 +10,9 @@ export function parsePatch(patch: string): Hunk[] {
   let cur: Hunk | null = null;
   let o = 0;
   let n = 0;
-  for (const raw of patch.split("\n")) {
+  const raws = patch.split("\n");
+  for (let i = 0; i < raws.length; i++) {
+    const raw = raws[i];
     const m = raw.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
     if (m) {
       o = +m[1];
@@ -19,7 +21,14 @@ export function parsePatch(patch: string): Hunk[] {
       hunks.push(cur);
       continue;
     }
-    if (!cur || raw === "" || raw.startsWith("\\")) continue; // "\ No newline at end of file"
+    if (!cur || raw.startsWith("\\")) continue; // "\ No newline at end of file"
+    if (raw === "") {
+      // Blank context line (unified diff emits empty lines for them). The final
+      // element after a trailing newline is an artifact, not a line.
+      if (i === raws.length - 1) continue;
+      cur.lines.push({ type: "ctx", oldLine: o++, newLine: n++, text: "" });
+      continue;
+    }
     const t = raw[0];
     const text = raw.slice(1);
     if (t === "+") cur.lines.push({ type: "add", newLine: n++, text });

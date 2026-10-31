@@ -51,6 +51,12 @@ export function resolvePosition(
     return { file: finding.file, start_line: start, end_line: end };
   }
 
+  // START-ANCHORED: start is commentable but end is not (deleted line, other
+  // hunk). Prefer a single-line anchor at the valid start over snapping away.
+  if (startHunk !== undefined) {
+    return { file: finding.file, start_line: start, end_line: start };
+  }
+
   // SNAP: search add/ctx lines within ±3 of start_line whose text contains the
   // trimmed evidence quote, across any hunk of the file.
   const quote = finding.evidence_quote?.trim();

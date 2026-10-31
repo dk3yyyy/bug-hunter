@@ -3,8 +3,9 @@
 > *"Every PR is haunted. Bug Hunter finds the spirits before they reach production."*
 
 An open-source AI code reviewer that hunts bugs and security holes in GitHub pull
-requests — powered by Google Gemini (or Claude, OpenAI, OpenCode Go, and any
-OpenAI-compatible model) — then posts a themed 🔮 Séance Report with fixes.
+requests — powered by your LLM (Google Gemini by default; or Claude, OpenAI,
+OpenCode Go, and any OpenAI-compatible model) — then posts a themed 🔮 Séance
+Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
 
@@ -62,7 +63,7 @@ npm run dev               # http://localhost:3000
 
 # 2. hunt any PR (must be a repo your GITHUB_TOKEN can read, and the PR must be open)
 curl -X POST http://localhost:3000/api/hunt \
-  -H "X-BugHunter-Secret: change-me-too" \
+  -H "X-BugHunter-Secret: $N8N_SHARED_SECRET" \
   -H "content-type: application/json" \
   -d '{"pr_url":"https://github.com/YOU/REPO/pull/N"}'
 ```

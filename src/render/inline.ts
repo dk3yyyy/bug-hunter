@@ -5,7 +5,7 @@ import type { KeptFinding } from "../types";
 import { loadVoice } from "../voice";
 import { fillTemplate } from "../prompts";
 import { CATEGORY_ICON, categoryLabel, FINDING_MARKER_PREFIX, severityBadge } from "./theme";
-import { escapeHtml, langFromPath } from "./seance";
+import { escapeHtml, langFromPath, sanitizeFixCode } from "./seance";
 
 export function renderInline(f: KeptFinding): string {
   const v = loadVoice();
@@ -24,7 +24,7 @@ export function renderInline(f: KeptFinding): string {
   lines.push("");
   lines.push(escapeHtml(f.explanation));
 
-  const fixCode = f.fix_code;
+  const fixCode = f.fix_code ? sanitizeFixCode(f.fix_code) : null;
   const suggestion = f.fix_kind === "suggestion" && f.fix_ok && !!fixCode;
   if (suggestion && fixCode) {
     lines.push("");

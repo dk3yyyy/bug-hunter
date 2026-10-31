@@ -77,9 +77,9 @@ ${rows
   .map(
     (r) => `<tr>
 <td class="mono">${escapeHtml(r.repo)}</td>
-<td><a href="${r.prUrl}">#${r.prNumber}</a></td>
+<td><a href="${escapeHtml(r.prUrl)}">#${r.prNumber}</a></td>
 <td>${escapeHtml(r.prTitle)}</td>
-<td><span class="badge ${LEVEL_BADGE[r.hauntingLevel] ?? "b-clear"}">${r.hauntingLevel}</span>${r.possessionAttempt ? " 👻" : ""}</td>
+<td><span class="badge ${LEVEL_BADGE[r.hauntingLevel] ?? "b-clear"}">${escapeHtml(r.hauntingLevel)}</span>${r.possessionAttempt ? " 👻" : ""}</td>
 <td>${r.keptCount}</td>
 <td>${r.exorcised}</td>
 </tr>`,

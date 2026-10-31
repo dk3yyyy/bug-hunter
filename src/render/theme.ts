@@ -2,6 +2,7 @@
 // All user-facing Halloween copy comes from prompts/voice.json (validated);
 // this module re-exports it in the shapes renderers and tests expect.
 import type { CategoryT, HauntingLevel, HuntCounts, SeverityT } from "../types";
+import { fillTemplate } from "../prompts";
 import { loadVoice } from "../voice";
 
 function voice() {
@@ -84,10 +85,12 @@ export function severityLabel(s: SeverityT): string {
 export function severityBadge(s: SeverityT): string {
   const v = voice();
   const e = v.severities[s];
-  return v.severity_badge
-    .replace(/\{\{emoji\}\}/g, e.emoji)
-    .replace(/\{\{creature\}\}/g, e.creature)
-    .replace(/\{\{label\}\}/g, e.label);
+  // fillTemplate throws on renamed vars instead of rendering "{{...}}" literally.
+  return fillTemplate(v.severity_badge, {
+    emoji: e.emoji,
+    creature: e.creature,
+    label: e.label,
+  });
 }
 
 // Markers used to upsert/dedupe the report and inline comments.
@@ -96,6 +99,11 @@ export function seanceMarker(): string {
 }
 export const SEANCE_MARKER = "<!-- bughunter:seance -->";
 export const FINDING_MARKER_PREFIX = "<!-- bughunter:f=";
+
+/** Regex matching inline finding markers; single source with FINDING_MARKER_PREFIX. */
+export function findingMarkerRegex(): RegExp {
+  return /<!--\s*bughunter:f=([a-f0-9]{40})\s*-->/g;
+}
 
 // Haunting-level emoji/title from voice (shared by report + status line).
 function levelMaps(): {

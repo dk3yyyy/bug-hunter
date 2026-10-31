@@ -11,7 +11,7 @@ export interface PrWebhookPayload {
   };
   repository?: { full_name?: string; owner?: { login?: string }; name?: string };
   sender?: { type?: string; login?: string };
-  comment?: { id?: number; body?: string };
+  comment?: { id?: number; body?: string; author_association?: string };
   issue?: { number: number; pull_request?: unknown };
 }
 
@@ -31,6 +31,17 @@ export function isSelfEvent(p: PrWebhookPayload): boolean {
 export function isSkippedAuthor(p: PrWebhookPayload): boolean {
   const login = p.sender?.login ?? "";
   return SKIPPED_AUTHORS.test(login);
+}
+
+/**
+ * Only repo collaborators may spend hunts via @bot commands. GitHub sends
+ * `comment.author_association`; missing/outsider association fails closed.
+ */
+const COMMAND_ROLES = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+export function isTrustedCommander(p: PrWebhookPayload): boolean {
+  const assoc = p.comment?.author_association?.toUpperCase() ?? "";
+  return COMMAND_ROLES.has(assoc);
 }
 
 export function shouldHunt(p: PrWebhookPayload): { ok: boolean; reason?: string } {
