@@ -87,7 +87,11 @@ async function main(): Promise<void> {
 
   console.log(`\nAvailable models for ${provider} (${names.length}):\n`);
   for (const n of names) console.log(`  ${n}`);
-  console.log(`\nSet LLM_MODEL_REVIEW / LLM_MODEL_FAST to one of these ids.\n`);
+  if (provider === "google") {
+    console.log(`\nSet GEMINI_MODEL_REVIEW / GEMINI_MODEL_FAST to one of these ids.\n`);
+  } else {
+    console.log(`\nSet LLM_MODEL_REVIEW / LLM_MODEL_FAST to one of these ids.\n`);
+  }
 }
 
 main().catch((e) => fail(e instanceof Error ? e.message : String(e)));
