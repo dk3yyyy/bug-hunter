@@ -42,7 +42,19 @@ const schema = z.object({
   CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.7),
   BOT_HANDLE: z.string().default("bughunter"),
 }).superRefine((v, ctx) => {
-  if (v.GITHUB_MODE === "pat" && !v.GITHUB_TOKEN) {
+  if (v.N8N_SHARED_SECRET === "change-me-too") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["N8N_SHARED_SECRET"],
+      message: "N8N_SHARED_SECRET still has the documented default — set a random secret (min 16 chars)",
+    });
+  } else if (v.N8N_SHARED_SECRET.length < 16) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["N8N_SHARED_SECRET"],
+      message: "N8N_SHARED_SECRET must be at least 16 characters",
+    });
+  }  if (v.GITHUB_MODE === "pat" && !v.GITHUB_TOKEN) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["GITHUB_TOKEN"],

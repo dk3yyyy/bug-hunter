@@ -99,8 +99,21 @@ describe("prompts", () => {
     expect(() => fillTemplate("hi {{name}} {{other}}", { name: "x" })).toThrow();
   });
 
-  it("seance template exposes {{changed_files_list}}", () => {
-    expect(loadPrompt("seance")).toContain("{{changed_files_list}}");
+  it("seance template exposes {{changed_files_list}}, {{repo_rules}} and {{summary_hint}}", () => {
+    const seance = loadPrompt("seance");
+    expect(seance).toContain("{{changed_files_list}}");
+    expect(seance).toContain("{{repo_rules}}");
+    expect(seance).toContain("{{summary_hint}}");
+    // Fully fillable with what the pipeline passes: no {{...}} may survive.
+    const filled = fillTemplate(seance, {
+      pr_title: "t",
+      pr_body: "b",
+      repo_rules: "(none)",
+      summary_hint: "",
+      changed_files_list: "a.ts",
+      annotated_diff: "d",
+    });
+    expect(filled).not.toMatch(/\{\{[^}]+\}\}/);
   });
 });
 

@@ -1,6 +1,7 @@
 // Bug Hunter server — Hono app, webhook ingress, manual trigger, in-process queue.
 // (SPEC §4, §8, §11, §16.4)
 import { serve } from "@hono/node-server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { Webhooks } from "@octokit/webhooks";
 import PQueue from "p-queue";
@@ -10,6 +11,7 @@ import * as api from "./github/api";
 import {
   isSelfEvent,
   isSkippedAuthor,
+  isTrustedCommander,
   parseCommand,
   prTarget,
   shouldHunt,
@@ -18,7 +20,7 @@ import {
 import { runHunt, type HuntDeps } from "./hunt/pipeline";
 import { buildContext, buildRepoRules } from "./hunt/context";
 import { annotateDiff } from "./diff/annotate";
-import { renderSeance } from "./render/seance";
+import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
 import { hauntingToStatus, pendingStatus } from "./render/status";
 import { scrubSecrets } from "./security";
@@ -42,6 +44,9 @@ const queue = new PQueue({ concurrency: 2 });
 const seenDeliveries = new Set<string>();
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
+// Per-PR cooldown for @bot command hunts (spend protection).
+const commandCooldown = new Map<string, number>();
+const COMMAND_COOLDOWN_MS = 5 * 60_000;
 
 export interface HuntRecord {
   id: string;
@@ -67,7 +72,11 @@ function logFailure(repo: string, pr: number, err: unknown): void {
 
 function authSecret(c: { req: { header: (n: string) => string | undefined } }): boolean {
   const given = c.req.header("x-bughunter-secret") ?? "";
-  return given.length > 0 && given === env.N8N_SHARED_SECRET;
+  if (given.length === 0) return false;
+  // Constant-time compare on hashes so secret length isn't leaked by timing.
+  const a = createHash("sha256").update(given).digest();
+  const b = createHash("sha256").update(env.N8N_SHARED_SECRET).digest();
+  return timingSafeEqual(a, b);
 }
 
 async function readGuidelines(
@@ -314,6 +323,13 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
   if (p.comment?.id) await api.addReaction(octokit, owner, repo, p.comment.id, "eyes");
 
   if (cmd.kind === "hunt" || cmd.kind === "seance") {
+    // Spend protection: only collaborators+ can trigger hunts, max one per PR
+    // per cooldown window.
+    if (!isTrustedCommander(p)) return;
+    const key = `${owner}/${repo}#${pr}`;
+    if (Date.now() - (commandCooldown.get(key) ?? 0) < COMMAND_COOLDOWN_MS) return;
+    commandCooldown.set(key, Date.now());
+    if (commandCooldown.size > 1000) commandCooldown.clear();
     void queue.add(() =>
       runHuntForPr(owner, repo, pr).catch((e) => logFailure(`${owner}/${repo}`, pr, e)),
     );
@@ -400,8 +416,12 @@ app.post("/api/connect", async (c) => {
   }
 });
 
-app.get("/api/hunts", (c) => c.json([...hunts.values()].slice(-50).reverse()));
+app.get("/api/hunts", (c) => {
+  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
+  return c.json([...hunts.values()].slice(-50).reverse());
+});
 app.get("/api/hunts/:id", (c) => {
+  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
   const rec = hunts.get(c.req.param("id"));
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });
@@ -415,7 +435,7 @@ app.get("/dashboard", (c) => {
 <h1>🎃 Bug Hunter — Dashboard</h1>
 <p class="muted">${stats.hunts} hunts · ${stats.spirits} spirits found · ${stats.possessed} possession attempts blocked</p>
 <table><thead><tr><th>Repo</th><th>PR</th><th>Title</th><th>Haunting</th><th>Spirits</th></tr></thead><tbody>
-${rows.map((r) => `<tr><td>${r.repo}</td><td><a href="${r.prUrl}">#${r.prNumber}</a></td><td>${r.prTitle.replace(/</g, "&lt;")}</td><td>${r.hauntingLevel}</td><td>${r.keptCount}</td></tr>`).join("")}
+${rows.map((r) => `<tr><td>${escapeHtml(r.repo)}</td><td><a href="${escapeHtml(r.prUrl)}">#${r.prNumber}</a></td><td>${escapeHtml(r.prTitle)}</td><td>${escapeHtml(r.hauntingLevel)}</td><td>${r.keptCount}</td></tr>`).join("")}
 </tbody></table>`;
   return c.html(body);
 });

@@ -115,8 +115,10 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   const { kept: keptFiles, skipped } = filterFiles(input.files);
 
   // 3. Review pass (throws propagate to the caller/server).
+  // The review schema caps findings at 40: never instruct more than that.
+  const maxFindings = Math.min(input.maxFindings, 40);
   const baseVars: Record<string, string> = {
-    max_findings: String(input.maxFindings),
+    max_findings: String(maxFindings),
     repo_rules: input.repoRules,
     pr_title: input.prTitle,
     pr_body: cleanBody,
@@ -164,10 +166,23 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   }
   kept = anchored;
 
-  // 7. Confidence/severity filter, then order and cap.
-  const passing = kept.filter(
-    (k) => k.adjusted_confidence >= input.confidenceThreshold && k.adjusted_severity !== "nitpick",
-  );
+  // 7. Confidence/severity filter, then order and cap. Everything dropped
+  // here is recorded as exorcised so the report accounts for every candidate.
+  const passing: KeptFinding[] = [];
+  for (const k of kept) {
+    if (k.adjusted_severity === "nitpick") {
+      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "downgraded to nitpick" });
+    } else if (k.adjusted_confidence < input.confidenceThreshold) {
+      exorcised.push({
+        id: k.id,
+        title: k.title,
+        severity: k.severity,
+        reason: `below confidence threshold (${k.adjusted_confidence.toFixed(2)} < ${input.confidenceThreshold})`,
+      });
+    } else {
+      passing.push(k);
+    }
+  }
 
   const sorted = [...passing].sort((a, b) => {
     const r = SEVERITY_RANK[a.adjusted_severity] - SEVERITY_RANK[b.adjusted_severity];
@@ -179,7 +194,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   const finalKept: KeptFinding[] = [];
   for (const k of sorted) {
     const count = perFile.get(k.file) ?? 0;
-    if (finalKept.length >= input.maxFindings || count >= 3) {
+    if (finalKept.length >= maxFindings || count >= 3) {
       exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "over cap / >3 per file" });
       continue;
     }

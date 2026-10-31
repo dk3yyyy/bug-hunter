@@ -63,7 +63,7 @@ npm run dev               # http://localhost:3000
 
 # 2. hunt any PR (must be a repo your GITHUB_TOKEN can read, and the PR must be open)
 curl -X POST http://localhost:3000/api/hunt \
-  -H "X-BugHunter-Secret: change-me-too" \
+  -H "X-BugHunter-Secret: $N8N_SHARED_SECRET" \
   -H "content-type: application/json" \
   -d '{"pr_url":"https://github.com/YOU/REPO/pull/N"}'
 ```

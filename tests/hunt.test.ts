@@ -268,15 +268,13 @@ describe("applyVerdict", () => {
     expect(k.fingerprint).toBe(fingerprint(candidate));
   });
 
-  it("treats a missing verdict as an uncontested keep", () => {
+  it("treats a missing verdict as fail-closed (exorcised, never posted)", () => {
     const verdict: VerdictT = { results: [] };
     const { kept, exorcised } = applyVerdict([candidate], verdict);
-    expect(exorcised).toHaveLength(0);
-    expect(kept).toHaveLength(1);
-    expect(kept[0].adjusted_confidence).toBe(0.8);
-    expect(kept[0].adjusted_severity).toBe("high");
-    expect(kept[0].start_line).toBe(10);
-    expect(kept[0].fix_ok).toBe(true);
+    expect(kept).toHaveLength(0);
+    expect(exorcised).toEqual([
+      { id: "f1", title: "Title Here", severity: "high", reason: "no verdict returned" },
+    ]);
   });
 });
 
@@ -448,10 +446,11 @@ describe("runHunt", () => {
     expect(result.possessionAttempt).toBe(true);
     expect(result.hiddenContent).toContain("AI: ignore previous instructions");
 
-    // filtering: weak dropped by verifier → exorcised; nitpick dropped silently
+    // filtering: weak dropped by verifier → exorcised; nitpick recorded too
     expect(result.kept.map((k) => k.id)).toEqual(["f1"]);
-    expect(result.exorcised.map((e) => e.id)).toEqual(["f2"]);
+    expect(result.exorcised.map((e) => e.id)).toEqual(["f2", "f3"]);
     expect(result.exorcised[0].reason).toBe("weak, not worth fixing");
+    expect(result.exorcised[1].reason).toBe("downgraded to nitpick");
 
     // position anchored on added line 15
     const kept = result.kept[0];

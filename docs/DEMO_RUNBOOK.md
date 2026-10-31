@@ -41,7 +41,7 @@ Minimum required keys (the server refuses to start and names any that are missin
 | `GITHUB_MODE` | `pat` |
 | `GITHUB_TOKEN` | Fine-grained PAT scoped to the demo repo (Permissions: Contents **Read**, Pull requests **Read & write**, Issues **Read & write**, Commit statuses **Read & write**, Metadata **Read**) |
 | `GITHUB_WEBHOOK_SECRET` | any random string (only needed for the webhook path) |
-| `N8N_SHARED_SECRET` | a shared secret, e.g. `change-me-too` (guards `/api/hunt` and the n8n webhook) |
+| `N8N_SHARED_SECRET` | a random secret, min 16 chars (guards `/api/hunt` and the n8n webhook; the server refuses to boot with the old documented default) |
 | `GEMINI_MODEL_REVIEW` | a real Gemini model id (see Troubleshooting §9.1) |
 
 Optional:
@@ -129,7 +129,7 @@ touching it.
 ```bash
 curl -sS -X POST http://localhost:3000/api/hunt \
   -H 'Content-Type: application/json' \
-  -H 'X-BugHunter-Secret: change-me-too' \
+  -H 'X-BugHunter-Secret: $N8N_SHARED_SECRET' \
   -d '{"pr_url": "https://github.com/YOUR-USERNAME/haunted-candy-shop/pull/1"}'
 ```
 
@@ -293,7 +293,7 @@ Make sure the header matches `N8N_SHARED_SECRET` in `.env` exactly:
 ```bash
 curl -sS -X POST http://localhost:3000/api/hunt \
   -H 'Content-Type: application/json' \
-  -H 'X-BugHunter-Secret: change-me-too' \
+  -H 'X-BugHunter-Secret: $N8N_SHARED_SECRET' \
   -d '{"pr_url": "https://github.com/<you>/haunted-candy-shop/pull/1"}'
 ```
 

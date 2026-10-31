@@ -23,9 +23,8 @@ export function fingerprint(f: FindingT): string {
  * `adjusted_severity` / `adjusted_confidence`. `position` is left `null` here —
  * it is resolved later in the pipeline against the commentable diff.
  *
- * A candidate with no matching VerdictResult (by id) is treated as an
- * uncontested keep: adjusted_confidence = confidence, adjusted_severity =
- * severity, fix_ok = true, no line corrections.
+ * A candidate with no matching VerdictResult (by id) is treated as fail-closed:
+ * exorcised with reason "no verdict returned", never posted.
  */
 export function applyVerdict(
   candidates: Array<FindingT & { id: string }>,
@@ -39,26 +38,14 @@ export function applyVerdict(
   for (const c of candidates) {
     const result = byId.get(c.id);
 
-    // Missing verdict ⇒ treat as keep with the original values.
+    // Missing verdict ⇒ fail closed: a candidate the verifier never judged
+    // must not be posted at full confidence.
     if (!result) {
-      kept.push({
+      exorcised.push({
         id: c.id,
-        fingerprint: fingerprint(c),
-        file: c.file,
-        start_line: c.start_line,
-        end_line: c.end_line,
-        severity: c.severity,
-        adjusted_severity: c.severity,
-        category: c.category,
-        confidence: c.confidence,
-        adjusted_confidence: c.confidence,
         title: c.title,
-        explanation: c.explanation,
-        evidence_quote: c.evidence_quote,
-        fix_kind: c.fix_kind,
-        fix_code: c.fix_code,
-        fix_ok: true,
-        position: null,
+        severity: c.severity,
+        reason: "no verdict returned",
       });
       continue;
     }

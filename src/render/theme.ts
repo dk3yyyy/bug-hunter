@@ -97,6 +97,11 @@ export function seanceMarker(): string {
 export const SEANCE_MARKER = "<!-- bughunter:seance -->";
 export const FINDING_MARKER_PREFIX = "<!-- bughunter:f=";
 
+/** Regex matching inline finding markers; single source with FINDING_MARKER_PREFIX. */
+export function findingMarkerRegex(): RegExp {
+  return /<!--\s*bughunter:f=([a-f0-9]{40})\s*-->/g;
+}
+
 // Haunting-level emoji/title from voice (shared by report + status line).
 function levelMaps(): {
   emoji: Record<HauntingLevel, string>;
