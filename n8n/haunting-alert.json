@@ -1,0 +1,261 @@
+{
+  "name": "🚨 Haunting Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bughunter-hunt",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000001",
+      "name": "Bug Hunter Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        300
+      ],
+      "webhookId": "bughunter-hunt",
+      "credentials": {
+        "headerAuth": {
+          "id": null,
+          "name": "BugHunter Header Auth — REPLACE ME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000201",
+              "name": "creature_label",
+              "value": "={{ $json.haunting_level === 'possessed' ? '💀 Possessed' : $json.haunting_level === 'haunted' ? '👻 Haunted' : $json.haunting_level === 'restless' ? '🦇 Restless' : $json.haunting_level === 'whispers' ? '🕯️ Whispers' : '🌕 Clear' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000202",
+              "name": "total_spirits",
+              "value": "={{ ($json.counts.critical || 0) + ($json.counts.high || 0) + ($json.counts.medium || 0) + ($json.counts.low || 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000203",
+              "name": "timestamp",
+              "value": "={{ $json.finished_at ? new Date($json.finished_at).toLocaleString() : new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000002",
+      "name": "Normalize Hunt Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        80,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000301",
+              "leftValue": "={{ $json.repo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": false
+              }
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000302",
+              "leftValue": "={{ $json.pr_number }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000003",
+      "name": "Valid Payload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        360,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-000000000004",
+      "name": "Stop Invalid Payload",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        620,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000501",
+              "leftValue": "={{ $json.haunting_level }}",
+              "rightValue": "haunted",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000502",
+              "leftValue": "={{ $json.haunting_level }}",
+              "rightValue": "possessed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000005",
+      "name": "Haunted or Possessed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-000000000006",
+      "name": "No Alert Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📌 INSERT HERE: Google Sheets → Append\n\nAdd a **Google Sheets** node between \"Valid Payload\" (true branch) and \"Haunted or Possessed\":\n\n- Resource: **Sheet**\n- Operation: **Append Row** (\"Append\")\n- Spreadsheet: your Hunt Ledger spreadsheet\n- Sheet: **Hunt Ledger**\n- Columns (12, in order): time, repo, PR #, title, haunting level, demons, ghosts, bats, cobwebs, possession attempt, false alarms exorcised, PR link\n\nFull config in **IMPORT.md → Workflow 1 → Google Sheets Append**.\nTurn **Continue on Fail** ON.",
+        "height": 360,
+        "width": 360
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000007",
+      "name": "INSERT Google Sheets Append",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📌 INSERT HERE: Gmail → Send\n\nAdd a **Gmail** node on the 🟢 TRUE branch of \"Haunted or Possessed\":\n\n- Resource: **Message**\n- Operation: **Send**\n- To: maintainer address\n- Subject: `🎃 Bug Hunter: PR #{{ pr_number }} is {{ haunting_level }}`\n- Email type: HTML\n- Body: haunting level + top findings + PR link (+ possession line when `possession_attempt` is true)\n\nFull config in **IMPORT.md → Workflow 1 → Gmail Send**.\nTurn **Continue on Fail** ON.\nOptional: also add **Discord** or **Slack** here.",
+        "height": 380,
+        "width": 380
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000008",
+      "name": "INSERT Gmail Send",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Bug Hunter Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Hunt Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Hunt Payload": {
+      "main": [
+        [
+          {
+            "node": "Valid Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Payload": {
+      "main": [
+        [
+          {
+            "node": "Haunted or Possessed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop Invalid Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Haunted or Possessed": {
+      "main": [
+        [],
+        [
+          {
+            "node": "No Alert Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "pinData": {}
+}

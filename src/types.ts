@@ -160,3 +160,22 @@ export interface ExorcisedFinding {
   severity: SeverityT;
   reason: string;
 }
+
+// ---------------------------------------------------------------------------
+// A stored hunt (in-memory "dashboard" record).
+// ---------------------------------------------------------------------------
+
+export interface HuntRecord {
+  id: string;
+  repo: string;
+  prNumber: number;
+  prTitle: string;
+  prUrl: string;
+  hauntingLevel: HauntingLevel;
+  counts: HuntCounts;
+  possessionAttempt: boolean;
+  exorcised: number;
+  keptCount: number;
+  topFindings: Array<{ severity: string; title: string; file: string; line: number }>;
+  finishedAt: string;
+}

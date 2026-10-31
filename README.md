@@ -15,7 +15,7 @@ Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightm
 
 When a pull request opens, Bug Hunter:
 
-1. Reads the diff and hunts for real bugs and security holes with **your configured LLM**.
+1. Reads the diff and hunts for real bugs and security holes with **your model**.
 2. Runs a second, skeptical **verifier** pass to throw out false alarms.
 3. Detects **possession attempts** — hidden instructions trying to trick AI reviewers.
 4. Posts a themed **🔮 Séance Report** ranking every finding by creature (💀 Demon … 🕸️ Cobweb).

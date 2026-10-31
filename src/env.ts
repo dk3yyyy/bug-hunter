@@ -22,6 +22,8 @@ const schema = z.object({
   // Public base URL of this server (e.g. https://bug-hunter.example.com). Used
   // by the auto-connect endpoint to register repo webhooks. Empty = auto-connect off.
   PUBLIC_URL: z.string().default(""),
+  // GitHub repo URL for the landing page "View the repo" buttons. Empty = keep "#".
+  LANDING_REPO_URL: z.string().default(""),
   GOOGLE_GENERATIVE_AI_API_KEY: z
     .string()
     .min(1, "GOOGLE_GENERATIVE_AI_API_KEY is required"),
