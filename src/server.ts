@@ -10,6 +10,7 @@ import * as api from "./github/api";
 import {
   isSelfEvent,
   isSkippedAuthor,
+  parseCommand,
   prTarget,
   shouldHunt,
   type PrWebhookPayload,
@@ -283,6 +284,45 @@ webhooks.on(
     }
   },
 );
+
+const SPELLBOOK = `🎃 **Bug Hunter — spellbook**
+
+- \`@${env.BOT_HANDLE} hunt\` (or \`review\`) — hunt this PR now
+- \`@${env.BOT_HANDLE} seance\` (or \`summary\`) — regenerate the Séance Report
+- \`@${env.BOT_HANDLE} spellbook\` (or \`help\`) — this list
+
+Every hunt runs a Gemini review + a skeptical verifier pass, detects possession attempts, and posts the 🔮 Séance Report.`;
+
+// Commands (Step 4): issue_comment on a PR mentioning the bot.
+webhooks.on("issue_comment.created", async ({ id, payload }) => {
+  const p = payload as PrWebhookPayload;
+  if (seenDeliveries.has(id)) return;
+  seenDeliveries.add(id);
+  if (isSelfEvent(p)) return;
+  if (!p.issue?.pull_request) return; // only PR comments
+
+  const body = p.comment?.body ?? "";
+  const cmd = parseCommand(body, env.BOT_HANDLE);
+  if (cmd.kind === "none") return;
+
+  const full = p.repository?.full_name;
+  if (!full) return;
+  const [owner, repo] = full.split("/");
+  if (!owner || !repo) return;
+  const pr = p.issue.number;
+
+  const octokit = getOctokit();
+  if (p.comment?.id) await api.addReaction(octokit, owner, repo, p.comment.id, "eyes");
+
+  if (cmd.kind === "hunt" || cmd.kind === "seance") {
+    void queue.add(() =>
+      runHuntForPr(owner, repo, pr).catch((e) => logFailure(`${owner}/${repo}`, pr, e)),
+    );
+    return;
+  }
+  // spellbook / unknown
+  await api.replyComment(octokit, owner, repo, pr, SPELLBOOK).catch(() => {});
+});
 
 // ---------------------------------------------------------------------------
 // Routes

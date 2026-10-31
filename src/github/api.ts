@@ -198,6 +198,43 @@ export async function createRepoWebhook(
   return data.id;
 }
 
+/** React 👀 to a comment (best-effort, never throws). */
+export async function addReaction(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commentId: number,
+  reaction: "eyes",
+): Promise<void> {
+  try {
+    await octokit.rest.reactions.createForIssueComment({
+      owner,
+      repo,
+      comment_id: commentId,
+      content: reaction,
+    });
+  } catch {
+    // Reactions are cosmetic.
+  }
+}
+
+/** Post a top-level PR comment (command replies). */
+export async function replyComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pr: number,
+  body: string,
+): Promise<number> {
+  const { data } = await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pr,
+    body,
+  });
+  return data.id;
+}
+
 /** Set a commit status (Option A can't create check runs) — SPEC §6, §13.3. Non-critical: never throws. */
 export async function setCommitStatus(
   octokit: Octokit,

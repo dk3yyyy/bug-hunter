@@ -11,7 +11,7 @@ export interface PrWebhookPayload {
   };
   repository?: { full_name?: string; owner?: { login?: string }; name?: string };
   sender?: { type?: string; login?: string };
-  comment?: { body?: string };
+  comment?: { id?: number; body?: string };
   issue?: { number: number; pull_request?: unknown };
 }
 
