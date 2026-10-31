@@ -127,7 +127,7 @@
   .steps h3 { font-size: 1.5rem; }
   .steps p { margin-top: .25rem; color: var(--muted); }
 
-  /* three looks: gemini, skeptic, code */
+  /* three looks: model, skeptic, code */
   .looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; margin-top: 2.2rem; align-items: stretch; }
   .look { display: flex; flex-direction: column; gap: .8rem; }
   .look h3 { font-size: 1.45rem; }
@@ -212,11 +212,11 @@
     <section class="hero" aria-labelledby="h1">
       <div>
         <h1 id="h1">Your pull request is haunted.</h1>
-        <p class="lede">Most AI reviewers cry wolf, so people stop reading them. Bug Hunter reviews every pull request with Gemini, makes a second pass try to disprove each finding, and only comments on the bugs that survive.</p>
+        <p class="lede">Most AI reviewers cry wolf, so people stop reading them. Bug Hunter reviews every pull request with your model, makes a second pass try to disprove each finding, and only comments on the bugs that survive.</p>
         <div class="cta-row">
           <!-- TODO: replace # with the real GitHub repo URL -->
           <a class="btn" href="#" id="repo-link">View the repo</a>
-          <span class="cta-note">Free, open source, bring your own Gemini key.</span>
+          <span class="cta-note">Free, open source, bring your own API key — Gemini, Claude, OpenAI, OpenCode Go, or any OpenAI-compatible model.</span>
         </div>
       </div>
 
@@ -264,7 +264,7 @@
           </li>
           <li>
             <h3>First look</h3>
-            <p>Gemini reads the diff with explicit line numbers and writes plain technical findings.</p>
+            <p>The model reads the diff with explicit line numbers and writes plain technical findings.</p>
           </li>
           <li>
             <h3>Second look</h3>
@@ -279,12 +279,12 @@
     </section>
 
     <section class="block" aria-labelledby="looks-h">
-      <h2 id="looks-h" style="max-width: 24ch;">Gemini finds it. A second look doubts it. Code haunts it.</h2>
+      <h2 id="looks-h" style="max-width: 24ch;">The model finds it. A second look doubts it. Code haunts it.</h2>
       <p style="margin-top: 1rem; color: var(--muted);">The model only ever writes plain findings. The costume is added by code after a finding has survived, so the technical content never depends on the theme.</p>
       <div class="looks">
         <div class="look">
           <h3>First look</h3>
-          <span class="sub">What Gemini reports, in plain language</span>
+          <span class="sub">What the model reports, in plain language</span>
           <div class="item"><span class="label">Finding 1, line 17</span>cache[id] returns undefined for expired or unknown sessions, so s.user throws.</div>
           <div class="item"><span class="label">Finding 2, line 9</span>Possible null dereference on order.items.</div>
         </div>
@@ -346,7 +346,7 @@
 
       <ol class="pipe" id="pipe" aria-label="Automation pipeline">
         <li><b>Webhook</b>GitHub sends the pull request</li>
-        <li><b>Gemini</b>Reviews, then doubts itself</li>
+        <li><b>The model</b>Reviews, then doubts itself</li>
         <li><b>Séance Report</b>Posted on the pull request</li>
         <li><b>n8n</b>Picks up the result</li>
         <li><b>Google</b>Sheets row and Gmail digest</li>
