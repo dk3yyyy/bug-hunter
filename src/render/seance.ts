@@ -82,6 +82,8 @@ export interface SeanceArgs {
   counts: HuntCounts;
   level: HauntingLevel;
   title: string;
+  /** Display name for the voice footer ("powered by …"). Defaults to "AI". */
+  provider?: string;
 }
 
 export function renderSeance(args: SeanceArgs): string {
@@ -252,7 +254,11 @@ export function renderSeance(args: SeanceArgs): string {
 
   const shortSha = headSha.slice(0, 7);
   lines.push(
-    fillTemplate(s.footer, { effort: String(summary.effort), short_sha: shortSha }),
+    fillTemplate(s.footer, {
+      provider: escapeHtml(args.provider ?? "AI"),
+      effort: String(summary.effort),
+      short_sha: shortSha,
+    }),
   );
 
   return lines.join("\n");

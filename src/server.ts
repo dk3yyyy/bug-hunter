@@ -24,6 +24,7 @@ import { hauntingToStatus, pendingStatus } from "./render/status";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel } from "./llm/models";
+import { providerDisplayName } from "./llm/config";
 import { generateStructured } from "./llm/structured";
 import { loadAllPrompts } from "./prompts";
 import {
@@ -155,6 +156,7 @@ async function runHuntForPr(
         counts: result.counts,
         level: result.haunting.level,
         title: result.haunting.title,
+        provider: providerDisplayName(env.LLM_PROVIDER),
       }),
     ),
   );
@@ -288,7 +290,7 @@ const SPELLBOOK = `🎃 **Bug Hunter — spellbook**
 - \`@${env.BOT_HANDLE} seance\` (or \`summary\`) — regenerate the Séance Report
 - \`@${env.BOT_HANDLE} spellbook\` (or \`help\`) — this list
 
-Every hunt runs a Gemini review + a skeptical verifier pass, detects possession attempts, and posts the 🔮 Séance Report.`;
+Every hunt runs an AI review + a skeptical verifier pass, detects possession attempts, and posts the 🔮 Séance Report.`;
 
 // Commands (Step 4): issue_comment on a PR mentioning the bot.
 webhooks.on("issue_comment.created", async ({ id, payload }) => {

@@ -3,6 +3,7 @@ import { loadVoice, resetVoiceCache, Voice } from "../src/voice";
 import { fillTemplate, loadAllPrompts, loadPrompt } from "../src/prompts";
 import { buildRepoRules } from "../src/hunt/context";
 import { severityBadge } from "../src/render/theme";
+import { providerDisplayName } from "../src/llm/config";
 import { renderSeance } from "../src/render/seance";
 import type { KeptFinding, SeanceOutputT } from "../src/types";
 import { readFileSync } from "node:fs";
@@ -26,8 +27,7 @@ describe("voice.json", () => {
     expect(badge).toContain("Demon");
   });
 
-  it("changing a creature label changes the posted report with no code change", () => {
-    resetVoiceCache();
+  it("changing a creature label changes the posted report with no code change", () => {    resetVoiceCache();
     const f: KeptFinding = {
       id: "f1",
       fingerprint: "abc",
@@ -158,5 +158,51 @@ describe("buildRepoRules (base branch only)", () => {
     expect(out.length).toBeLessThanOrEqual(6000);
     expect(out).toContain("x".repeat(100));
     expect(out).not.toContain("x".repeat(2001));
+  });
+});
+
+describe("provider-agnostic footer", () => {
+  const summary: SeanceOutputT = {
+    summary: "Does things.",
+    change_type: "feature",
+    walkthrough: [],
+    risk_areas: [],
+    effort: 2,
+    spooky_tagline: "Boo.",
+  };
+  const base = {
+    owner: "o",
+    repo: "r",
+    headSha: "abcdef123456",
+    summary,
+    kept: [],
+    exorcised: [],
+    skipped: [],
+    lurking: [],
+    possessionAttempt: false,
+    counts: { critical: 0, high: 0, medium: 0, low: 0, nitpick: 0 },
+    level: "clear" as const,
+    title: "All clear: no spirits detected",
+  };
+
+  it("names the configured provider in the footer", () => {
+    const out = renderSeance({ ...base, provider: "Claude" });
+    expect(out).toContain("powered by Claude");
+    expect(out).not.toContain("Google Gemini");
+  });
+
+  it("falls back to a generic label with no provider", () => {
+    const out = renderSeance(base);
+    expect(out).toContain("powered by AI");
+  });
+
+  it("maps every provider id to a display name", () => {
+    expect(providerDisplayName("google")).toBe("Google Gemini");
+    expect(providerDisplayName("anthropic")).toBe("Claude");
+    expect(providerDisplayName("openai")).toBe("OpenAI");
+    expect(providerDisplayName("opencode")).toBe("OpenCode Go");
+    expect(providerDisplayName("openrouter")).toBe("OpenRouter");
+    expect(providerDisplayName("ollama")).toBe("Ollama");
+    expect(providerDisplayName("openai-compatible")).toBe("AI");
   });
 });

@@ -3,8 +3,9 @@
 > *"Every PR is haunted. Bug Hunter finds the spirits before they reach production."*
 
 An open-source AI code reviewer that hunts bugs and security holes in GitHub pull
-requests — powered by Google Gemini (or Claude, OpenAI, OpenCode Go, and any
-OpenAI-compatible model) — then posts a themed 🔮 Séance Report with fixes.
+requests — powered by your LLM (Google Gemini by default; or Claude, OpenAI,
+OpenCode Go, and any OpenAI-compatible model) — then posts a themed 🔮 Séance
+Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
 
@@ -14,7 +15,7 @@ Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightm
 
 When a pull request opens, Bug Hunter:
 
-1. Reads the diff and hunts for real bugs and security holes with **Gemini**.
+1. Reads the diff and hunts for real bugs and security holes with **your configured LLM**.
 2. Runs a second, skeptical **verifier** pass to throw out false alarms.
 3. Detects **possession attempts** — hidden instructions trying to trick AI reviewers.
 4. Posts a themed **🔮 Séance Report** ranking every finding by creature (💀 Demon … 🕸️ Cobweb).

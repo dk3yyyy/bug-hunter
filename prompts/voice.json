@@ -95,7 +95,7 @@
     "all_clear": "🌕 **All clear: no spirits detected in this PR.** The hunter searched every changed line and found nothing worth haunting you about.",
     "false_alarm_item": "- ~~{{title}}~~ ({{reason}})",
     "finding_heading": "### {{index}}. {{severity_badge}} · {{category_emoji}} {{category_label}}: {{title}}",
-    "footer": "<sub>🎃 Bug Hunter · powered by Google Gemini · effort {{effort}}/5 · hunted commit `{{short_sha}}` · React 👍 or 👎 to tell the hunter how it did</sub>",
+    "footer": "<sub>🎃 Bug Hunter · powered by {{provider}} · effort {{effort}}/5 · hunted commit `{{short_sha}}` · React 👍 or 👎 to tell the hunter how it did</sub>",
     "graveyard_item": "- `{{file}}` ({{reason}})",
     "haunting_line": "**Haunting level:** {{level_emoji}} **{{level_title}}** · 💀 {{critical}} · 👻 {{high}} · 🦇 {{medium}} · 🕸️ {{low}}",
     "location_line": "📍 [`{{file}}:{{line_range}}`]({{line_url}})",

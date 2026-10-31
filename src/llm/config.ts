@@ -74,3 +74,23 @@ export function resolveModelConfig(
   }
   return { provider: e.LLM_PROVIDER, model, apiKey: e.LLM_API_KEY, baseUrl: e.LLM_BASE_URL };
 }
+
+/** Human-facing provider name for report footers ("powered by …"). */
+export function providerDisplayName(p: LlmProvider): string {
+  switch (p) {
+    case "google":
+      return "Google Gemini";
+    case "openai":
+      return "OpenAI";
+    case "anthropic":
+      return "Claude";
+    case "opencode":
+      return "OpenCode Go";
+    case "openrouter":
+      return "OpenRouter";
+    case "ollama":
+      return "Ollama";
+    case "openai-compatible":
+      return "AI";
+  }
+}
