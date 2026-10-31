@@ -27,9 +27,7 @@ const schema = z.object({
   // Public URL of the running app. When set, the landing "Connect a repo" button
   // links to <APP_URL>/connect; otherwise it falls back to the repo's setup docs.
   APP_URL: z.string().default(""),
-  GOOGLE_GENERATIVE_AI_API_KEY: z
-    .string()
-    .min(1, "GOOGLE_GENERATIVE_AI_API_KEY is required"),
+  GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(""),
   GEMINI_MODEL_REVIEW: z.string().default("gemini-flash-latest"),
   GEMINI_MODEL_FAST: z.string().default("gemini-flash-latest"),
   // Multi-provider (BYO model). google (default) uses the Gemini key above;
@@ -78,6 +76,13 @@ const schema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["LLM_API_KEY"],
       message: `LLM_API_KEY is required when LLM_PROVIDER=${v.LLM_PROVIDER}`,
+    });
+  }
+  if (v.LLM_PROVIDER === "google" && !v.GOOGLE_GENERATIVE_AI_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GOOGLE_GENERATIVE_AI_API_KEY"],
+      message: "GOOGLE_GENERATIVE_AI_API_KEY is required when LLM_PROVIDER=google",
     });
   }
   if (v.LLM_PROVIDER !== "google" && !v.LLM_MODEL_REVIEW) {
