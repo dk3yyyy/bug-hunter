@@ -93,17 +93,18 @@ export async function upsertSeance(
   const markedBody = body.includes(marker) ? body : `${marker}\n\n${body}`;
 
   let existingId: number | null = null;
-  for (let page = 1; page <= 5 && existingId === null; page += 1) {
-    const { data } = await octokit.rest.issues.listComments({
-      owner,
-      repo,
-      issue_number: pr,
-      per_page: 100,
-      page,
-    });
-    const found = data.find((c) => typeof c.body === "string" && c.body.includes(marker));
-    if (found) existingId = found.id;
-    if (data.length < 100) break;
+  const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: pr,
+    per_page: 100,
+  });
+  for await (const page of iterator) {
+    const found = page.data.find((c) => typeof c.body === "string" && c.body.includes(marker));
+    if (found) {
+      existingId = found.id;
+      break;
+    }
   }
 
   if (existingId !== null) {

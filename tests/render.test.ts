@@ -268,7 +268,7 @@ describe("renderInline", () => {
 });
 
 describe("hauntingToStatus", () => {
-  it("maps possessed to failure and everything else to success", () => {
+  it("maps possessed and haunted to failure, the rest to success", () => {
     const possessed = hauntingToStatus("possessed", {
       critical: 1,
       high: 2,
@@ -283,7 +283,7 @@ describe("hauntingToStatus", () => {
     });
 
     expect(hauntingToStatus("haunted", { critical: 0, high: 1, medium: 0, low: 0, nitpick: 0 }).state).toBe(
-      "success",
+      "failure",
     );
     expect(hauntingToStatus("restless", { critical: 0, high: 0, medium: 1, low: 0, nitpick: 0 }).state).toBe(
       "success",

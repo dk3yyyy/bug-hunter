@@ -114,7 +114,15 @@ export async function buildContext(
       parts.push(`### [file] ${f.filename}\n${content}`);
     } else {
       const ranges = mergeRanges(
-        f.hunks.map((h) => [Math.max(1, h.newStart - WINDOW), h.newStart + WINDOW] as [number, number]),
+        f.hunks.map((h) => {
+          // Cover the whole hunk, not just its head: the end is the highest
+          // new-side line number the hunk touches.
+          let end = h.newStart;
+          for (const l of h.lines) {
+            if (l.newLine !== undefined && l.newLine > end) end = l.newLine;
+          }
+          return [Math.max(1, h.newStart - WINDOW), end + WINDOW] as [number, number];
+        }),
       );
       for (const [s, e] of ranges) {
         const slice = lines

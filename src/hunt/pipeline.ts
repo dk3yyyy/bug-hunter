@@ -11,7 +11,7 @@ import type {
 import { resolvePosition } from "../diff/commentable";
 import { filterFiles } from "./filters";
 import { candidatesJson, withIds } from "./review";
-import { sanitizeText } from "./sanitize";
+import { sanitizeText, scanVisible, stripInvisible } from "./sanitize";
 import { emptySeance } from "./summary";
 import { applyVerdict } from "./verify";
 
@@ -104,12 +104,15 @@ export function computeHaunting(
 }
 
 export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntResult> {
-  // 1. Sanitize the PR body; flag possession attempts.
+  // 1. Sanitize the PR body and title; flag possession attempts. Titles ride
+  // raw into prompts, so strip invisible chars and scan visible instructions.
   const {
     clean: cleanBody,
     hidden: hiddenContent,
-    possession: possessionAttempt,
+    possession: bodyPossession,
   } = sanitizeText(input.prBody);
+  const cleanTitle = stripInvisible(input.prTitle);
+  const possessionAttempt = bodyPossession || scanVisible(cleanTitle);
 
   // 2. Filter the changed files.
   const { kept: keptFiles, skipped } = filterFiles(input.files);
@@ -120,7 +123,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   const baseVars: Record<string, string> = {
     max_findings: String(maxFindings),
     repo_rules: input.repoRules,
-    pr_title: input.prTitle,
+    pr_title: cleanTitle,
     pr_body: cleanBody,
     hidden_content_or_none: hiddenContent.length ? hiddenContent.join("\n---\n") : "(none)",
     context: input.context,
@@ -216,7 +219,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   try {
     const seancePrompt = renderTemplate(input.prompts.seance, {
       annotated_diff: input.annotatedDiff,
-      pr_title: input.prTitle,
+      pr_title: cleanTitle,
       pr_body: cleanBody,
       changed_files_list: keptFiles.map((f) => f.filename).join("\n") || "(none)",
       summary_hint: notes.join("\n"),
@@ -225,7 +228,10 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     });
     summary = await deps.seance({ system: "", user: seancePrompt });
   } catch {
+    // Visible degradation: never render a silently blank summary section.
     summary = emptySeance();
+    summary.summary = "Summary unavailable — the séance pass failed, but the hunt above continued.";
+    notes.push("SUMMARY UNAVAILABLE: the seance model call failed; findings above are unaffected.");
   }
 
   // 10. Assemble the result.

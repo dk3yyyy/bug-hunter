@@ -55,5 +55,7 @@ export function annotateDiff(
     return { text: full, truncated: false };
   }
   const keep = Math.max(0, maxChars - TRUNCATION_MARKER.length);
-  return { text: full.slice(0, keep) + TRUNCATION_MARKER, truncated: true };
+  // Cut at a line boundary so the model never sees a phantom half-line number.
+  const cut = full.lastIndexOf("\n", keep);
+  return { text: full.slice(0, cut > 0 ? cut : keep) + TRUNCATION_MARKER, truncated: true };
 }

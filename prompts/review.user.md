@@ -1,5 +1,7 @@
 REPO RULES (from the repository's guideline files on the base branch; follow them):
+<untrusted>
 {{repo_rules}}
+</untrusted>
 
 PR METADATA:
 <untrusted>

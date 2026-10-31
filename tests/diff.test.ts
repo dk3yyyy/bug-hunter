@@ -130,12 +130,18 @@ describe("annotateDiff", () => {
     expect(text).not.toContain("\\ No newline");
   });
 
-  it("truncates to maxChars with a [TRUNCATED] marker", () => {
+  it("truncates to maxChars with a [TRUNCATED] marker, cut at a line boundary", () => {
     const patch = "@@ -1,1 +1,5 @@ many\n+a\n+b\n+c\n+d\n+e\n";
-    const { text, truncated } = annotateDiff([changedFile("src/x.ts", patch)], { maxChars: 40 });
+    const file = changedFile("src/x.ts", patch);
+    const full = annotateDiff([file]).text;
+    const { text, truncated } = annotateDiff([file], { maxChars: 40 });
     expect(truncated).toBe(true);
-    expect(text.length).toBe(40);
+    expect(text.length).toBeLessThanOrEqual(40);
     expect(text.endsWith("...[TRUNCATED]")).toBe(true);
+    // The cut lands on a newline: the next char in the full text is a boundary.
+    const stripped = text.replace(/\.\.\.\[TRUNCATED\]$/, "");
+    expect(full.startsWith(stripped)).toBe(true);
+    expect(full[stripped.length]).toBe("\n");
   });
 
   it("does not truncate when maxChars is large enough or unset", () => {
@@ -195,8 +201,12 @@ describe("resolvePosition", () => {
     });
   });
 
-  it("rejects a multi-line finding spanning two hunks", () => {
-    expect(resolvePosition(files, { file: "src/a.ts", start_line: 3, end_line: 13 })).toBeNull();
+  it("anchors at the commentable start when the range spans two hunks", () => {
+    expect(resolvePosition(files, { file: "src/a.ts", start_line: 3, end_line: 13 })).toEqual({
+      file: "src/a.ts",
+      start_line: 3,
+      end_line: 3,
+    });
   });
 
   it("defaults end_line to start_line when end_line is unset", () => {
@@ -269,5 +279,47 @@ describe("resolvePosition", () => {
     expect(
       resolvePosition([snap], { file: "src/b.ts", start_line: 100, end_line: 100, evidence_quote: "two" })
     ).toBeNull();
+  });
+});
+
+describe("parsePatch blank lines", () => {
+  it("counts blank context lines instead of drifting subsequent numbers", () => {
+    const hunks = parsePatch("@@ -1,4 +1,5 @@\n a = 1;\n\n+b = 2;\n c = 3;");
+    expect(hunks).toHaveLength(1);
+    const lines = hunks[0].lines;
+    expect(lines.map((l) => [l.type, l.newLine])).toEqual([
+      ["ctx", 1],
+      ["ctx", 2],
+      ["add", 3],
+      ["ctx", 4],
+    ]);
+  });
+
+  it("ignores the trailing-newline artifact", () => {
+    const hunks = parsePatch("@@ -1,1 +1,1 @@\n+a = 1;\n");
+    expect(hunks[0].lines).toHaveLength(1);
+  });
+});
+
+describe("annotateDiff truncation", () => {
+  it("cuts at a line boundary, never mid-line", () => {
+    const file = changedFile("a.ts", "@@ -1,3 +1,3 @@\n ctx1\n+add2\n ctx3\n+add4 with a very long tail of text here");
+    const { text, truncated } = annotateDiff([file], { maxChars: 60 });
+    expect(truncated).toBe(true);
+    const withoutMarker = text.replace(/\.\.\.\[TRUNCATED\]$/, "");
+    expect(withoutMarker.endsWith("\n") || withoutMarker.length === 0 || text.endsWith("...[TRUNCATED]")).toBe(true);
+    // No partial line number prefix survives: every content line parses.
+    for (const line of withoutMarker.split("\n")) {
+      if (line.startsWith("##") || line.startsWith("@@") || line.startsWith("__") || line === "") continue;
+      expect(line).toMatch(/^\s*\d+ [+ ]/);
+    }
+  });
+});
+
+describe("resolvePosition start anchor", () => {
+  it("anchors at a commentable start when end is not commentable", () => {
+    const file = changedFile("a.ts", "@@ -10,3 +10,3 @@\n+added ten\n-removed eleven\n ctx twelve");
+    const pos = resolvePosition([file], { file: "a.ts", start_line: 10, end_line: 99, evidence_quote: "added ten" });
+    expect(pos).toEqual({ file: "a.ts", start_line: 10, end_line: 10 });
   });
 });

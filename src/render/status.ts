@@ -50,7 +50,11 @@ export function hauntingToStatus(
 
   return {
     context: v.status.context,
-    state: v.haunting_levels[level].status === "failure" ? "failure" : "success",
+    // Policy: possessed (critical / possession) and haunted (high findings)
+    // block the PR red; lesser hauntings stay green. Commit statuses have no
+    // "neutral", so voice "neutral" maps to success with the haunted title in
+    // the description carrying the warning.
+    state: level === "possessed" || level === "haunted" ? "failure" : "success",
     description,
   };
 }

@@ -46,7 +46,7 @@ export function resolveModelConfig(
       provider: "openrouter",
       model,
       apiKey: e.LLM_API_KEY,
-      baseUrl: "https://openrouter.ai/api/v1",
+      baseUrl: e.LLM_BASE_URL || "https://openrouter.ai/api/v1",
     };
   }
   if (e.LLM_PROVIDER === "opencode") {
@@ -62,7 +62,7 @@ export function resolveModelConfig(
       provider: "ollama",
       model,
       apiKey: e.LLM_API_KEY,
-      baseUrl: "http://localhost:11434/v1",
+      baseUrl: e.LLM_BASE_URL || "http://localhost:11434/v1",
     };
   }
   // openai and anthropic use their SDK defaults; only openai-compatible honors LLM_BASE_URL.

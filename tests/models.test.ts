@@ -35,9 +35,12 @@ describe("resolveModelConfig", () => {
     );
   });
 
-  it("uses OpenRouter's default base URL", () => {
+  it("uses OpenRouter's default base URL, honoring an override", () => {
+    expect(
+      resolveModelConfig({ ...base, LLM_PROVIDER: "openrouter", LLM_BASE_URL: "" }, "review").baseUrl,
+    ).toBe("https://openrouter.ai/api/v1");
     expect(resolveModelConfig({ ...base, LLM_PROVIDER: "openrouter" }, "review").baseUrl).toBe(
-      "https://openrouter.ai/api/v1",
+      "https://example.com/v1",
     );
   });
 
@@ -47,9 +50,12 @@ describe("resolveModelConfig", () => {
     ).toBe("https://opencode.ai/inference/openai/v1");
   });
 
-  it("uses localhost for ollama", () => {
+  it("uses localhost for ollama unless overridden", () => {
+    expect(
+      resolveModelConfig({ ...base, LLM_PROVIDER: "ollama", LLM_BASE_URL: "" }, "review").baseUrl,
+    ).toBe("http://localhost:11434/v1");
     expect(resolveModelConfig({ ...base, LLM_PROVIDER: "ollama" }, "review").baseUrl).toBe(
-      "http://localhost:11434/v1",
+      "https://example.com/v1",
     );
   });
 

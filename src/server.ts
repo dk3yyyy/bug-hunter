@@ -44,6 +44,22 @@ const queue = new PQueue({ concurrency: 2 });
 const seenDeliveries = new Set<string>();
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
+// Upper bounds for prompt-bound text (unbounded PRs = unbounded LLM spend).
+const MAX_DIFF_CHARS = 120_000;
+const MAX_CONTEXT_CHARS = 60_000;
+// One in-flight hunt per PR (duplicate runs = duplicate comments + spend).
+const runningHunts = new Set<string>();
+// seenDeliveries and hunts are append-only: cap them so a long-lived server
+// cannot grow the heap without bound.
+const MAX_DELIVERIES = 10_000;
+const MAX_HUNTS = 200;
+
+function rememberDelivery(id: string): boolean {
+  if (seenDeliveries.has(id)) return false;
+  if (seenDeliveries.size >= MAX_DELIVERIES) seenDeliveries.clear();
+  seenDeliveries.add(id);
+  return true;
+}
 // Per-PR cooldown for @bot command hunts (spend protection).
 const commandCooldown = new Map<string, number>();
 const COMMAND_COOLDOWN_MS = 5 * 60_000;
@@ -97,6 +113,23 @@ async function runHuntForPr(
   repo: string,
   prNumber: number,
 ): Promise<HuntRecord | null> {
+  // Per-PR mutual exclusion: a debounced synchronize hunt and a manual @bot
+  // hunt must not run concurrently (duplicate inline comments + double spend).
+  const huntKey = `${owner}/${repo}#${prNumber}`;
+  if (runningHunts.has(huntKey)) return null;
+  runningHunts.add(huntKey);
+  try {
+    return await runHuntForPrInner(owner, repo, prNumber);
+  } finally {
+    runningHunts.delete(huntKey);
+  }
+}
+
+async function runHuntForPrInner(
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<HuntRecord | null> {
   const octokit = getOctokit();
 
   // Re-fetch current state; drop closed/draft/stale before spending.
@@ -112,8 +145,14 @@ async function runHuntForPr(
 
   const files = await api.listFiles(octokit, owner, repo, prNumber);
   const repoRules = await readGuidelines(octokit, owner, repo, pr.baseRef);
-  const annotated = annotateDiff(files.filter((f) => !f.isBinary && !!f.patch)).text;
-  const context = await buildContext(octokit, owner, repo, pr.headSha, files);
+  // Cap prompt-bound text: unbounded PRs mean unbounded LLM spend.
+  const annotated = annotateDiff(files.filter((f) => !f.isBinary && !!f.patch), {
+    maxChars: MAX_DIFF_CHARS,
+  }).text;
+  const context = (await buildContext(octokit, owner, repo, pr.headSha, files)).slice(
+    0,
+    MAX_CONTEXT_CHARS,
+  );
 
   const prompts = PROMPTS;
 
@@ -220,15 +259,23 @@ async function runHuntForPr(
     possessionAttempt: result.possessionAttempt,
     exorcised: result.exorcised.length,
     keptCount: result.kept.length,
+    // Dashboard points at the posted comment line (resolved position), not the
+    // pre-snap verifier line.
     topFindings: result.kept.slice(0, 3).map((f) => ({
       severity: f.adjusted_severity,
       title: f.title,
       file: f.file,
-      line: f.start_line,
+      line: f.position?.end_line ?? f.start_line,
     })),
     finishedAt: new Date().toISOString(),
   };
   hunts.set(record.id, record);
+  if (hunts.size > MAX_HUNTS) {
+    for (const key of hunts.keys()) {
+      if (hunts.size <= MAX_HUNTS) break;
+      hunts.delete(key);
+    }
+  }
 
   const n8n: HuntNotifyPayload = {
     event: "hunt.completed",
@@ -261,8 +308,7 @@ webhooks.on(
   ],
   async ({ id, payload }) => {
     const p = payload as PrWebhookPayload;
-    if (seenDeliveries.has(id)) return;
-    seenDeliveries.add(id);
+    if (!rememberDelivery(id)) return;
     if (isSelfEvent(p) || isSkippedAuthor(p)) return;
     const gate = shouldHunt(p);
     if (!gate.ok) return;
@@ -304,8 +350,7 @@ Every hunt runs an AI review + a skeptical verifier pass, detects possession att
 // Commands (Step 4): issue_comment on a PR mentioning the bot.
 webhooks.on("issue_comment.created", async ({ id, payload }) => {
   const p = payload as PrWebhookPayload;
-  if (seenDeliveries.has(id)) return;
-  seenDeliveries.add(id);
+  if (!rememberDelivery(id)) return;
   if (isSelfEvent(p)) return;
   if (!p.issue?.pull_request) return; // only PR comments
 
@@ -384,7 +429,8 @@ app.post("/api/hunt", async (c) => {
 
   try {
     const record = await runHuntForPr(owner, repo, prNumber);
-    if (!record) return c.json({ error: "PR is closed, draft, or not found" }, 404);
+    if (!record)
+      return c.json({ error: "PR is closed, draft, not found, or a hunt is already running" }, 404);
     return c.json(record);
   } catch (e) {
     logFailure(`${owner}/${repo}`, prNumber, e);

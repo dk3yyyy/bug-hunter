@@ -193,7 +193,9 @@ good thing to show working — see Troubleshooting §9.3 if you hit a 422.
 ### 4.3 Commit status
 
 The head commit shows a **`Bug Hunter 🎃`** status: `failure` with
-"💀 Possessed: do not merge (1 demon, …)" for this PR.
+"💀 Possessed: do not merge (1 demon, …)" for this PR. Policy: `possessed`
+(critical findings or possession) and `haunted` (high findings) report
+`failure`; lesser hauntings stay green.
 
 ### 4.4 The dashboard
 
