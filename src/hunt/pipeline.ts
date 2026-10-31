@@ -15,9 +15,26 @@ import { sanitizeText } from "./sanitize";
 import { emptySeance } from "./summary";
 import { applyVerdict } from "./verify";
 
-/** Replace `{{key}}` placeholders with values from `vars` (missing ⇒ ""). */
+/** Replace `{{key}}` placeholders with values from `vars`.
+ * Throws when a key is missing or any {{...}} survives — never send
+ * unfilled placeholders to the model. */
 export function renderTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? "");
+  const missing = new Set<string>();
+  const out = template.replace(/\{\{(\w+)\}\}/g, (m, k: string) => {
+    if (!(k in vars)) {
+      missing.add(k);
+      return m;
+    }
+    return vars[k];
+  });
+  if (missing.size > 0) {
+    throw new Error(`missing template vars: ${[...missing].join(", ")}`);
+  }
+  const leftover = out.match(/\{\{[^}]+\}\}/);
+  if (leftover) {
+    throw new Error(`unfilled placeholder in prompt: ${leftover[0]}`);
+  }
+  return out;
 }
 
 /** Injected LLM calls, so the pipeline itself never touches the network. */
@@ -186,7 +203,10 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
       annotated_diff: input.annotatedDiff,
       pr_title: input.prTitle,
       pr_body: cleanBody,
+      changed_files_list: keptFiles.map((f) => f.filename).join("\n") || "(none)",
       summary_hint: notes.join("\n"),
+      context: input.context,
+      repo_rules: input.repoRules,
     });
     summary = await deps.seance({ system: "", user: seancePrompt });
   } catch {

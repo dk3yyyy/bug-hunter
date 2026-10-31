@@ -63,3 +63,12 @@ Bug Hunter calls the webhook with header `X-BugHunter-Secret: <N8N_SHARED_SECRET
   "finished_at": "2026-10-31T14:04:12Z"
 }
 ```
+
+## Workflow 4: 🕰️ Witching Hour (3 AM ghost narrator)
+
+**Schedule Trigger** (3 AM + Manual Trigger for demo) → build `facts` from open
+bugs → **Google Gemini → Message a Model** with the prompt in
+[`prompts/witching-hour.md`](../prompts/witching-hour.md) (paste the file content
+into the node; `{{ JSON.stringify($json.facts) }}` is an n8n expression) →
+**Gmail → Send** `{subject, story}`. The prompt file is the reference copy; the
+node paste is the live copy.

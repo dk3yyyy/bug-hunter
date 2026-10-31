@@ -1,4 +1,4 @@
-REPO RULES (from guideline files; follow them):
+REPO RULES (from the repository's guideline files on the base branch; follow them):
 {{repo_rules}}
 
 PR METADATA:
@@ -14,7 +14,9 @@ CONTEXT (read-only files from the repository at the PR head):
 {{context}}
 </untrusted>
 
-DIFF TO REVIEW:
+DIFF TO REVIEW (new-file line numbers on the left of __new hunk__ lines):
 <untrusted>
 {{annotated_diff}}
 </untrusted>
+
+Return ONLY JSON matching the schema.

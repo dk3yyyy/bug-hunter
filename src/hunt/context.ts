@@ -5,6 +5,32 @@ import type { Octokit } from "@octokit/rest";
 import type { ChangedFile } from "../types";
 import { getFileContent } from "../github/api";
 
+// Repo-rules files read from the PR's BASE branch (never head): a PR cannot
+// change its own rules. .bughunter.md is capped at 2,000 chars; the
+// concatenated rules at 6,000.
+export const REPO_RULE_FILES = [".bughunter.md", "AGENTS.md", "CLAUDE.md", ".cursorrules"] as const;
+export const BUGHUNTER_MAX = 2000;
+export const REPO_RULES_MAX = 6000;
+
+export async function buildRepoRules(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  baseRef: string,
+): Promise<string> {
+  const parts: string[] = [];
+  for (const path of REPO_RULE_FILES) {
+    const content = await getFileContent(octokit, owner, repo, path, baseRef);
+    if (!content) continue;
+    const capped = path === ".bughunter.md" ? content.slice(0, BUGHUNTER_MAX) : content.slice(0, 2000);
+    if (!capped.trim()) continue;
+    parts.push(`### From ${path}\n${capped}`);
+    if (parts.join("\n\n").length >= REPO_RULES_MAX) break;
+  }
+  const out = parts.join("\n\n").slice(0, REPO_RULES_MAX);
+  return out.trim() ? out : "(none)";
+}
+
 const MAX_CONTEXT_FILES = 12;
 const FULL_FILE_LINES = 400;
 const WINDOW = 40;

@@ -135,6 +135,36 @@ haunted/possessed PRs — with error handling that logs failures to a separate s
 See [`demo/README.md`](demo/README.md) for the haunted-candy-shop demo repo (five planted
 bugs plus a hidden possession attempt).
 
+## Repo rules (`.bughunter.md`)
+
+Write team rules in plain English in a `.bughunter.md` file on your default branch.
+Bug Hunter reads it from the PR's base branch (a PR can't change its own rules),
+alongside `AGENTS.md` / `CLAUDE.md` / `.cursorrules`. Rules can add checks or tell
+the hunter to ignore accepted patterns. Rules cannot switch off security findings.
+Max 2,000 characters.
+
+```markdown
+# 🎃 Bug Hunter rules
+
+<!-- Write rules in plain English. Bug Hunter reads this file from your default branch.
+     Rules can add checks or tell the hunter to ignore accepted patterns.
+     Rules cannot switch off security findings. Max 2,000 characters. -->
+
+## Always check
+-
+
+## Conventions we accept (don't flag)
+-
+
+## Extra attention (paths or areas)
+-
+```
+
+All Halloween wording lives in [`prompts/voice.json`](prompts/voice.json) — edit it to
+change the posted reports with no code changes. The LLM prompts live in
+`prompts/review.system.md`, `prompts/review.user.md`, `prompts/verify.md` and
+`prompts/seance.md`.
+
 ## Docs
 
 - [`docs/PRIOR_WORK.md`](docs/PRIOR_WORK.md) — what existed before the event vs. what was built during it.

@@ -141,6 +141,7 @@ export async function postInlineReview(
   pr: number,
   headSha: string,
   comments: InlineComment[],
+  body?: string,
 ): Promise<void> {
   if (comments.length === 0) return;
   await octokit.rest.pulls.createReview({
@@ -149,7 +150,7 @@ export async function postInlineReview(
     pull_number: pr,
     commit_id: headSha,
     event: "COMMENT",
-    body: "🎃 Bug Hunter has marked the spirits it found.",
+    body: body ?? "🎃 Bug Hunter has marked the spirits it found.",
     comments: comments as never,
   });
 }

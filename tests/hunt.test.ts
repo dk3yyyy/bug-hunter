@@ -299,9 +299,9 @@ describe("computeHaunting", () => {
 });
 
 describe("renderTemplate", () => {
-  it("replaces placeholders and drops unknown ones", () => {
+  it("replaces placeholders and throws on missing ones (never send {{...}} to Gemini)", () => {
     expect(renderTemplate("hello {{name}}!", { name: "world" })).toBe("hello world!");
-    expect(renderTemplate("{{missing}}", {})).toBe("");
+    expect(() => renderTemplate("{{missing}}", {})).toThrow(/missing template vars/);
   });
 });
 
