@@ -1,0 +1,55 @@
+{
+  "name": "🧿 Exorcism on Demand",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "🧿 Exorcism on Demand",
+        "formDescription": "Paste a pull request URL to summon Bug Hunter for a fresh hunt. Bug Hunter will review the PR and post a Séance Report.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Pull request URL",
+              "fieldType": "text",
+              "placeholder": "https://github.com/you/haunted-candy-shop/pull/3",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "🕯️ The hunt has been summoned. Bug Hunter will review your PR and post a Séance Report on it."
+            }
+          }
+        }
+      },
+      "id": "c3d4e5f6-0000-4000-8000-000000000001",
+      "name": "Exorcism Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📌 INSERT HERE: server call + completion\n\nAfter \"Exorcism Form\", add:\n\n1. **HTTP Request** → `POST {server}/api/hunt`\n   - Header `X-BugHunter-Secret` = `{{ $env.N8N_SHARED_SECRET }}`\n   - JSON body `{ \"pr_url\": \"{{ $json['Pull request URL'] }}\" }`\n2. **Wait / poll** `GET /api/hunts/:id` until the hunt finishes\n3. **Form completion** page showing the haunting level (advanced: Wait + Respond to Webhook, or custom form JS)\n\nFull config in **IMPORT.md → Workflow 3**.",
+        "height": 320,
+        "width": 380
+      },
+      "id": "c3d4e5f6-0000-4000-8000-000000000002",
+      "name": "INSERT Server Call",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        460,
+        200
+      ]
+    }
+  ],
+  "connections": {},
+  "settings": {},
+  "pinData": {}
+}
