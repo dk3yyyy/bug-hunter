@@ -1,0 +1,56 @@
+{
+  "name": "🌙 Midnight Séance",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 0,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "b2c3d4e5-0000-4000-8000-000000000001",
+      "name": "Daily at Midnight",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "b2c3d4e5-0000-4000-8000-000000000002",
+      "name": "Run Séance Now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📌 INSERT HERE: digest pipeline\n\nConnect BOTH triggers above (\"Daily at Midnight\" and \"Run Séance Now\") into the first node below, then chain:\n\n1. **Google Sheets → Get rows** from **Hunt Ledger**\n2. **Filter** → keep rows from the last 24 h\n3. **Google Gemini → Message a Model** (write a nightly séance report, max 150 words)\n4. **Gmail → Send** (the digest to the team)\n\nFull node-by-node config in **IMPORT.md → Workflow 2**.",
+        "height": 300,
+        "width": 380
+      },
+      "id": "b2c3d4e5-0000-4000-8000-000000000003",
+      "name": "INSERT Digest Pipeline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        200
+      ]
+    }
+  ],
+  "connections": {},
+  "settings": {},
+  "pinData": {}
+}
