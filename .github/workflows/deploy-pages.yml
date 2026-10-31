@@ -24,9 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build landing page
+        env:
+          REPO_URL: https://github.com/${{ github.repository }}
+          APP_URL: ${{ vars.APP_URL }}
         run: |
           mkdir -p dist
-          node -e 'const fs=require("fs");let h=fs.readFileSync("src/render/landing.html","utf8");h=h.replace(/href="#"/g,"href=\"https://github.com/dk3yyyy/bug-hunter\"");fs.writeFileSync("dist/index.html",h);'
+          node -e 'const fs=require("fs");let h=fs.readFileSync("src/render/landing.html","utf8");const repo=process.env.REPO_URL||"https://github.com/dk3yyyy/bug-hunter";const connect=process.env.APP_URL?process.env.APP_URL.replace(/\/$/,"")+"/connect":repo+"#try-it-in-5-minutes";h=h.replace(/href=\"#connect\"/g,`href=\"${connect}\"`).replace(/href=\"#repo\"/g,`href=\"${repo}\"`);fs.writeFileSync("dist/index.html",h);'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

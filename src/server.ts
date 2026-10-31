@@ -25,7 +25,7 @@ import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
 import { errorStatus, hauntingToStatus, pendingStatus } from "./render/status";
-import { renderLanding, renderDashboard, renderSummoned } from "./render/pages";
+import { renderLanding, renderDashboard, renderSummoned, renderConnect } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel } from "./llm/models";
@@ -415,7 +415,13 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
 // Routes
 // ---------------------------------------------------------------------------
 
-app.get("/", (c) => c.html(renderLanding(env.LANDING_REPO_URL)));
+const repoUrl = env.LANDING_REPO_URL || "https://github.com/dk3yyyy/bug-hunter";
+const connectUrl = env.APP_URL
+  ? `${env.APP_URL.replace(/\/$/, "")}/connect`
+  : `${repoUrl}#try-it-in-5-minutes`;
+
+app.get("/", (c) => c.html(renderLanding({ connectUrl, repoUrl })));
+app.get("/connect", (c) => c.html(renderConnect(env.PUBLIC_URL, env.BOT_HANDLE)));
 app.get("/health", (c) => c.json({ ok: true, queued: queue.size }));
 
 app.post("/webhooks/github", async (c) => {

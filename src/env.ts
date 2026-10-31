@@ -24,6 +24,9 @@ const schema = z.object({
   PUBLIC_URL: z.string().default(""),
   // GitHub repo URL for the landing page "View the repo" buttons. Empty = keep "#".
   LANDING_REPO_URL: z.string().default(""),
+  // Public URL of the running app. When set, the landing "Connect a repo" button
+  // links to <APP_URL>/connect; otherwise it falls back to the repo's setup docs.
+  APP_URL: z.string().default(""),
   GOOGLE_GENERATIVE_AI_API_KEY: z
     .string()
     .min(1, "GOOGLE_GENERATIVE_AI_API_KEY is required"),
