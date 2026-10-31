@@ -4,6 +4,7 @@ export type LlmProvider =
   | "openai"
   | "anthropic"
   | "opencode"
+  | "deepseek"
   | "openrouter"
   | "ollama"
   | "openai-compatible";
@@ -57,6 +58,14 @@ export function resolveModelConfig(
       baseUrl: e.LLM_BASE_URL || "https://opencode.ai/inference/openai/v1",
     };
   }
+  if (e.LLM_PROVIDER === "deepseek") {
+    return {
+      provider: "deepseek",
+      model,
+      apiKey: e.LLM_API_KEY,
+      baseUrl: e.LLM_BASE_URL || "https://api.deepseek.com/v1",
+    };
+  }
   if (e.LLM_PROVIDER === "ollama") {
     return {
       provider: "ollama",
@@ -86,6 +95,8 @@ export function providerDisplayName(p: LlmProvider): string {
       return "Claude";
     case "opencode":
       return "OpenCode Go";
+    case "deepseek":
+      return "DeepSeek";
     case "openrouter":
       return "OpenRouter";
     case "ollama":

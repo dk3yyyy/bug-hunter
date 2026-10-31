@@ -58,6 +58,12 @@ async function main(): Promise<void> {
       headers.Authorization = `Bearer ${key}`;
       break;
     }
+    case "deepseek": {
+      if (!key) fail("LLM_API_KEY is not set (your DeepSeek key)");
+      url = "https://api.deepseek.com/v1/models";
+      headers.Authorization = `Bearer ${key}`;
+      break;
+    }
     case "openrouter": {
       url = "https://openrouter.ai/api/v1/models";
       break;

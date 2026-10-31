@@ -50,6 +50,12 @@ describe("resolveModelConfig", () => {
     ).toBe("https://opencode.ai/inference/openai/v1");
   });
 
+  it("uses DeepSeek's default base URL", () => {
+    expect(
+      resolveModelConfig({ ...base, LLM_PROVIDER: "deepseek", LLM_BASE_URL: "" }, "review").baseUrl,
+    ).toBe("https://api.deepseek.com/v1");
+  });
+
   it("uses localhost for ollama unless overridden", () => {
     expect(
       resolveModelConfig({ ...base, LLM_PROVIDER: "ollama", LLM_BASE_URL: "" }, "review").baseUrl,

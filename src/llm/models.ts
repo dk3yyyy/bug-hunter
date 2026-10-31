@@ -22,6 +22,8 @@ export function getModel(role: "review" | "verify" | "fast"): LanguageModel {
       return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(cfg.model);
     case "opencode":
       return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(cfg.model);
+    case "deepseek":
+      return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(cfg.model);
     case "ollama":
       return createOpenAI({ apiKey: cfg.apiKey || "ollama", baseURL: cfg.baseUrl })(cfg.model);
     case "openai-compatible":

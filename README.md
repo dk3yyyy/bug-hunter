@@ -35,7 +35,7 @@ Fill in `.env`:
   - `GOOGLE_GENERATIVE_AI_API_KEY` — a Gemini API key from
     [Google AI Studio](https://aistudio.google.com/).
   - Or bring your own model: set `LLM_PROVIDER` to `openai` | `anthropic` (Claude) |
-    `opencode` (OpenCode Go) | `openrouter` | `ollama` | `openai-compatible`, plus
+    `opencode` (OpenCode Go) | `deepseek` (DeepSeek) | `openrouter` | `ollama` | `openai-compatible`, plus
     `LLM_API_KEY` and `LLM_MODEL_REVIEW` / `LLM_MODEL_FAST` (and `LLM_BASE_URL` for
     `openai-compatible`).
   - To see valid model ids for your provider, run `npm run check:models`.
@@ -82,6 +82,7 @@ commit status flips to 💀/🌕.
 | Claude | `anthropic` | `claude-sonnet-4-5` |
 | OpenAI | `openai` | `gpt-4o` |
 | OpenCode Go | `opencode` | `glm-5.3` |
+| DeepSeek | `deepseek` | `deepseek-chat` |
 | OpenRouter | `openrouter` | `anthropic/claude-sonnet-4.5` |
 | Ollama (local) | `ollama` | `qwen2.5-coder:14b` |
 | Any OpenAI-compatible | `openai-compatible` | vendor model id |
