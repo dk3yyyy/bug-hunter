@@ -1,7 +1,6 @@
-// Deterministic Séance Report renderer (§13.1).
-// All styling (headings, icons, labels, footer) lives here; model text is
-// escaped except inside code fences, where it is kept verbatim.
-
+// Deterministic Séance Report renderer.
+// All styling (headings, icons, labels, footer) comes from prompts/voice.json;
+// model text is escaped except inside code fences, where it is kept verbatim.
 import type {
   ExorcisedFinding,
   HauntingLevel,
@@ -9,10 +8,16 @@ import type {
   KeptFinding,
   SeanceOutputT,
 } from "../types";
-import { CATEGORY_ICON, CREATURE, LEVEL_EMOJI, SEANCE_MARKER } from "./theme";
+import { loadVoice } from "../voice";
+import { fillTemplate } from "../prompts";
+import {
+  CATEGORY_ICON,
+  categoryLabel,
+  seanceMarker,
+  severityBadge,
+} from "./theme";
 
-// File extension → markdown fence language (§13.1 "code fence language comes
-// from the file extension"). Unknown extensions yield an unlabelled fence.
+// File extension → markdown fence language. Unknown extensions yield unlabelled fence.
 export function langFromPath(path: string): string {
   const dot = path.lastIndexOf(".");
   if (dot < 0) return "";
@@ -57,14 +62,6 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// "critical" -> "Critical"; "error-handling" -> "Error-Handling".
-function titleCase(s: string): string {
-  return s
-    .split("-")
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
-    .join("-");
-}
-
 // Escapes a markdown table cell: HTML chars plus the `|` separator.
 function tableCell(s: string): string {
   return escapeHtml(s).replace(/\|/g, "\\|");
@@ -80,12 +77,15 @@ export interface SeanceArgs {
   skipped: { path: string; reason: string }[];
   lurking: KeptFinding[];
   possessionAttempt: boolean;
+  /** First POSSESSION: note from the model, if any (shown inside the callout). */
+  possessionNote?: string;
   counts: HuntCounts;
   level: HauntingLevel;
   title: string;
 }
 
 export function renderSeance(args: SeanceArgs): string {
+  const v = loadVoice();
   const {
     owner,
     repo,
@@ -96,64 +96,83 @@ export function renderSeance(args: SeanceArgs): string {
     skipped,
     lurking,
     possessionAttempt,
+    possessionNote,
     counts,
     level,
     title,
   } = args;
 
   const lines: string[] = [];
+  const s = v.seance;
 
-  lines.push(SEANCE_MARKER);
-  lines.push("# 🔮 Séance Report");
+  lines.push(seanceMarker());
+  lines.push(`# ${v.seance.title}`);
   lines.push("");
   lines.push(`> *${escapeHtml(summary.spooky_tagline)}*`);
   lines.push("");
 
   if (possessionAttempt) {
+    const note =
+      possessionNote ??
+      "Hidden instructions in this PR tried to steer AI reviewers.";
     lines.push(
-      "> 🪄 **Possession attempt detected.** This PR contains hidden instructions aimed at AI reviewers (e.g. telling them to report no issues). Bug Hunter ignored them. A human should check why they're there.",
+      fillTemplate(s.possession_callout, { possession_note: escapeHtml(note) }),
     );
     lines.push("");
   }
 
   // Haunting-level line. Zero findings drops the per-severity counts.
   if (kept.length === 0) {
-    lines.push(`**Haunting level:** ${LEVEL_EMOJI[level]} **${escapeHtml(title)}**`);
+    lines.push(`**Haunting level:** ${v.haunting_levels[level].emoji} **${escapeHtml(title)}**`);
   } else {
     lines.push(
-      `**Haunting level:** ${LEVEL_EMOJI[level]} **${escapeHtml(title)}** · 💀 ${counts.critical} · 👻 ${counts.high} · 🦇 ${counts.medium} · 🕸️ ${counts.low}`,
+      fillTemplate(s.haunting_line, {
+        level_emoji: v.haunting_levels[level].emoji,
+        level_title: escapeHtml(title),
+        critical: String(counts.critical),
+        high: String(counts.high),
+        medium: String(counts.medium),
+        low: String(counts.low),
+      }),
     );
   }
   lines.push("");
 
-  lines.push("## 📜 What this PR does");
+  lines.push(`## ${s.sections.summary}`);
   lines.push(escapeHtml(summary.summary));
   lines.push("");
 
   if (kept.length === 0) {
-    lines.push("## 🌕 All clear: no spirits detected in this PR.");
+    lines.push(`## ${s.all_clear}`);
     lines.push("");
   } else {
-    lines.push(`## 👻 Spirits found (${kept.length})`);
+    lines.push(`## ${fillTemplate(s.sections.findings, { count: String(kept.length) })}`);
     lines.push("");
     kept.forEach((f, idx) => {
-      const i = idx + 1;
-      const creature = CREATURE[f.adjusted_severity];
+      const badge = severityBadge(f.adjusted_severity);
       lines.push(
-        `### ${i}. ${creature.emoji} ${creature.label} · ${titleCase(
-          f.adjusted_severity,
-        )} · ${CATEGORY_ICON[f.category]} ${titleCase(f.category)}: ${escapeHtml(
-          f.title,
-        )}`,
+        fillTemplate(s.finding_heading, {
+          index: String(idx + 1),
+          severity_badge: badge,
+          category_emoji: CATEGORY_ICON[f.category],
+          category_label: categoryLabel(f.category),
+          title: escapeHtml(f.title),
+        }),
       );
+      const lineRange =
+        f.start_line === f.end_line ? `${f.start_line}` : `${f.start_line}-${f.end_line}`;
       lines.push(
-        `📍 [\`${escapeHtml(f.file)}:${f.start_line}\`](https://github.com/${owner}/${repo}/blob/${headSha}/${f.file}#L${f.start_line})`,
+        fillTemplate(s.location_line, {
+          file: escapeHtml(f.file),
+          line_range: lineRange,
+          line_url: `https://github.com/${owner}/${repo}/blob/${headSha}/${f.file}#L${f.start_line}`,
+        }),
       );
       lines.push("");
       lines.push(escapeHtml(f.explanation));
       lines.push("");
       if (f.fix_code) {
-        lines.push("<details><summary>🧪 Possible fix</summary>");
+        lines.push(`<details><summary>${s.fix_label}</summary>`);
         lines.push("");
         lines.push("```" + langFromPath(f.file));
         lines.push(f.fix_code);
@@ -161,21 +180,20 @@ export function renderSeance(args: SeanceArgs): string {
         lines.push("</details>");
         lines.push("");
       }
-      lines.push(`<sub>Confidence ${f.adjusted_confidence.toFixed(2)}</sub>`);
+      lines.push(fillTemplate(s.confidence_line, { confidence: f.adjusted_confidence.toFixed(2) }));
       lines.push("");
     });
   }
 
-  lines.push("## 🏚️ Haunted halls (walkthrough)");
-  lines.push("| Files | Change |");
-  lines.push("|---|---|");
+  lines.push(`## ${s.sections.walkthrough}`);
+  lines.push(s.walkthrough_header);
   for (const row of summary.walkthrough) {
     const files = row.files.map((f) => "`" + tableCell(f) + "`").join(", ");
     lines.push(`| ${files} | ${tableCell(row.change)} |`);
   }
   lines.push("");
 
-  lines.push("## 🕯️ Where to look closely");
+  lines.push(`## ${s.sections.risk_areas}`);
   for (const r of summary.risk_areas) {
     lines.push(`- ${escapeHtml(r)}`);
   }
@@ -183,7 +201,7 @@ export function renderSeance(args: SeanceArgs): string {
 
   if (lurking.length > 0) {
     lines.push(
-      `<details><summary>👁️ Lurking outside the diff (${lurking.length})</summary>`,
+      `<details><summary>${fillTemplate(s.sections.outside_diff, { count: String(lurking.length) })}</summary>`,
     );
     lines.push("");
     for (const f of lurking) {
@@ -198,11 +216,16 @@ export function renderSeance(args: SeanceArgs): string {
 
   if (exorcised.length > 0) {
     lines.push(
-      `<details><summary>🧹 Exorcised false alarms (${exorcised.length})</summary>`,
+      `<details><summary>${fillTemplate(s.sections.false_alarms, { count: String(exorcised.length) })}</summary>`,
     );
     lines.push("");
     for (const e of exorcised) {
-      lines.push(`- ${escapeHtml(e.title)} — ${escapeHtml(e.reason)}`);
+      lines.push(
+        fillTemplate(s.false_alarm_item, {
+          title: escapeHtml(e.title),
+          reason: escapeHtml(e.reason),
+        }),
+      );
     }
     lines.push("");
     lines.push("</details>");
@@ -211,11 +234,16 @@ export function renderSeance(args: SeanceArgs): string {
 
   if (skipped.length > 0) {
     lines.push(
-      `<details><summary>🪦 The Graveyard: files not hunted (${skipped.length})</summary>`,
+      `<details><summary>${fillTemplate(s.sections.graveyard, { count: String(skipped.length) })}</summary>`,
     );
     lines.push("");
-    for (const s of skipped) {
-      lines.push(`- \`${escapeHtml(s.path)}\` — ${escapeHtml(s.reason)}`);
+    for (const sk of skipped) {
+      lines.push(
+        fillTemplate(s.graveyard_item, {
+          file: escapeHtml(sk.path),
+          reason: escapeHtml(sk.reason),
+        }),
+      );
     }
     lines.push("");
     lines.push("</details>");
@@ -224,7 +252,7 @@ export function renderSeance(args: SeanceArgs): string {
 
   const shortSha = headSha.slice(0, 7);
   lines.push(
-    `<sub>🎃 Bug Hunter · powered by Google Gemini · effort ${summary.effort}/5 · hunted commit ${shortSha} · React 👍/👎 to tell the hunter how it did</sub>`,
+    fillTemplate(s.footer, { effort: String(summary.effort), short_sha: shortSha }),
   );
 
   return lines.join("\n");

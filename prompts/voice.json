@@ -1,0 +1,152 @@
+{
+  "categories": {
+    "api-contract": {
+      "emoji": "📜",
+      "label": "API contract"
+    },
+    "bug": {
+      "emoji": "🐛",
+      "label": "Bug"
+    },
+    "concurrency": {
+      "emoji": "🔀",
+      "label": "Concurrency"
+    },
+    "data-integrity": {
+      "emoji": "🗄️",
+      "label": "Data integrity"
+    },
+    "error-handling": {
+      "emoji": "🧯",
+      "label": "Error handling"
+    },
+    "maintainability": {
+      "emoji": "🧹",
+      "label": "Maintainability"
+    },
+    "performance": {
+      "emoji": "🐢",
+      "label": "Performance"
+    },
+    "prompt-injection": {
+      "emoji": "🪄",
+      "label": "Possession attempt"
+    },
+    "security": {
+      "emoji": "🧛",
+      "label": "Security"
+    },
+    "test-gap": {
+      "emoji": "🧪",
+      "label": "Test gap"
+    }
+  },
+  "errors": {
+    "hunt_failed_comment": "🌫️ **The hunt was lost in the fog.** Bug Hunter couldn't finish reviewing this PR. It will try again on the next push."
+  },
+  "graveyard_reasons": {
+    "binary": "binary or no diff",
+    "generated": "generated file",
+    "limit": "over the file limit",
+    "lockfile": "lockfile",
+    "too_large": "too large to hunt",
+    "vendored": "vendored or build output"
+  },
+  "haunting_levels": {
+    "clear": {
+      "emoji": "🌕",
+      "status": "success",
+      "title": "All clear: no spirits detected"
+    },
+    "haunted": {
+      "emoji": "👻",
+      "status": "neutral",
+      "title": "This PR is haunted"
+    },
+    "possessed": {
+      "emoji": "💀",
+      "status": "failure",
+      "title": "Possessed: do not merge"
+    },
+    "restless": {
+      "emoji": "🦇",
+      "status": "neutral",
+      "title": "Restless spirits detected"
+    },
+    "whispers": {
+      "emoji": "🕯️",
+      "status": "success",
+      "title": "Faint whispers: minor cleanup only"
+    }
+  },
+  "inline": {
+    "footer": "<sub>Confidence {{confidence}} · 🎃 Bug Hunter</sub>",
+    "header": "**{{severity_badge}}** · {{category_emoji}} {{category_label}}",
+    "title": "### {{title}}",
+    "fix_label": "Possible fix",
+    "review_body": "🎃 Bug Hunter has marked {{count}} spirit(s) on the lines where they lurk. Full details are in the 🔮 Séance Report."
+  },
+  "product": {
+    "emoji": "🎃",
+    "name": "Bug Hunter",
+    "tagline": "Every PR is haunted. Bug Hunter finds the spirits before they reach production."
+  },
+  "seance": {
+    "all_clear": "🌕 **All clear: no spirits detected in this PR.** The hunter searched every changed line and found nothing worth haunting you about.",
+    "false_alarm_item": "- ~~{{title}}~~ ({{reason}})",
+    "finding_heading": "### {{index}}. {{severity_badge}} · {{category_emoji}} {{category_label}}: {{title}}",
+    "footer": "<sub>🎃 Bug Hunter · powered by Google Gemini · effort {{effort}}/5 · hunted commit `{{short_sha}}` · React 👍 or 👎 to tell the hunter how it did</sub>",
+    "graveyard_item": "- `{{file}}` ({{reason}})",
+    "haunting_line": "**Haunting level:** {{level_emoji}} **{{level_title}}** · 💀 {{critical}} · 👻 {{high}} · 🦇 {{medium}} · 🕸️ {{low}}",
+    "location_line": "📍 [`{{file}}:{{line_range}}`]({{line_url}})",
+    "marker": "<!-- bughunter:seance -->",
+    "sections": {
+      "false_alarms": "🧹 Exorcised false alarms ({{count}})",
+      "findings": "👻 Spirits found ({{count}})",
+      "graveyard": "🪦 The Graveyard: files not hunted ({{count}})",
+      "outside_diff": "👁️ Lurking outside the diff ({{count}})",
+      "risk_areas": "🕯️ Where to look closely",
+      "summary": "📜 What this PR does",
+      "walkthrough": "🏚️ Haunted halls (walkthrough)"
+    },
+    "title": "🔮 Séance Report",
+    "confidence_line": "<sub>Confidence {{confidence}}</sub>",
+    "fix_label": "🧪 Possible fix",
+    "possession_callout": "> 🪄 **Possession attempt detected.** This PR contains hidden instructions aimed at AI reviewers. Bug Hunter ignored them. A human should check why they're there.\n> \n> *{{possession_note}}*",
+    "walkthrough_header": "| Files | Change |\n|---|---|"
+  },
+  "severities": {
+    "critical": {
+      "creature": "Demon",
+      "emoji": "💀",
+      "label": "Critical"
+    },
+    "high": {
+      "creature": "Ghost",
+      "emoji": "👻",
+      "label": "High"
+    },
+    "low": {
+      "creature": "Cobweb",
+      "emoji": "🕸️",
+      "label": "Low"
+    },
+    "medium": {
+      "creature": "Bat",
+      "emoji": "🦇",
+      "label": "Medium"
+    },
+    "nitpick": {
+      "creature": "Candy wrapper",
+      "emoji": "🍬",
+      "label": "Nitpick"
+    }
+  },
+  "severity_badge": "{{emoji}} {{creature}} · {{label}}",
+  "status": {
+    "context": "Bug Hunter 🎃",
+    "done": "{{level_emoji}} {{level_title}} ({{counts_summary}})",
+    "error": "🌫️ The hunt was lost in the fog. Check the server logs.",
+    "pending": "🔦 The hunt has begun…"
+  }
+}

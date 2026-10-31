@@ -1,29 +1,26 @@
-// Inline review-comment renderer (§13.2, Step 3).
-// ```` ```suggestion ```` only when the verifier blessed the fix; otherwise a
-// normal labelled code block, or nothing at all.
-
+// Inline review-comment renderer. All Halloween copy comes from voice.json.
+// ```suggestion only when the verifier blessed the fix; otherwise a normal
+// labelled code block, or nothing at all.
 import type { KeptFinding } from "../types";
-import { CATEGORY_ICON, CREATURE, FINDING_MARKER_PREFIX } from "./theme";
+import { loadVoice } from "../voice";
+import { fillTemplate } from "../prompts";
+import { CATEGORY_ICON, categoryLabel, FINDING_MARKER_PREFIX, severityBadge } from "./theme";
 import { escapeHtml, langFromPath } from "./seance";
 
-function titleCase(s: string): string {
-  return s
-    .split("-")
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
-    .join("-");
-}
-
 export function renderInline(f: KeptFinding): string {
-  const creature = CREATURE[f.adjusted_severity];
+  const v = loadVoice();
+  const badge = severityBadge(f.adjusted_severity);
   const lines: string[] = [];
 
   lines.push(
-    `**${creature.emoji} ${creature.label} · ${titleCase(
-      f.adjusted_severity,
-    )}** · ${CATEGORY_ICON[f.category]} ${titleCase(f.category)}`,
+    fillTemplate(v.inline.header, {
+      severity_badge: badge,
+      category_emoji: CATEGORY_ICON[f.category],
+      category_label: categoryLabel(f.category),
+    }),
   );
   lines.push("");
-  lines.push(`### ${escapeHtml(f.title)}`);
+  lines.push(fillTemplate(v.inline.title, { title: escapeHtml(f.title) }));
   lines.push("");
   lines.push(escapeHtml(f.explanation));
 
@@ -36,7 +33,7 @@ export function renderInline(f: KeptFinding): string {
     lines.push("```");
   } else if (fixCode) {
     lines.push("");
-    lines.push("**Possible fix**");
+    lines.push(`**${v.inline.fix_label}**`);
     lines.push("");
     lines.push("```" + langFromPath(f.file));
     lines.push(fixCode);
@@ -44,10 +41,13 @@ export function renderInline(f: KeptFinding): string {
   }
 
   lines.push("");
-  lines.push(
-    `<sub>Confidence ${f.adjusted_confidence.toFixed(2)} · 🎃 Bug Hunter</sub>`,
-  );
+  lines.push(fillTemplate(v.inline.footer, { confidence: f.adjusted_confidence.toFixed(2) }));
   lines.push(`${FINDING_MARKER_PREFIX}${f.fingerprint} -->`);
 
   return lines.join("\n");
+}
+
+/** Body of the single review that carries the inline comments. */
+export function renderReviewBody(count: number): string {
+  return fillTemplate(loadVoice().inline.review_body, { count: String(count) });
 }

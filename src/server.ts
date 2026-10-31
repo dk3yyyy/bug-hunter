@@ -16,16 +16,16 @@ import {
   type PrWebhookPayload,
 } from "./github/webhooks";
 import { runHunt, type HuntDeps } from "./hunt/pipeline";
-import { buildContext } from "./hunt/context";
+import { buildContext, buildRepoRules } from "./hunt/context";
 import { annotateDiff } from "./diff/annotate";
 import { renderSeance } from "./render/seance";
-import { renderInline } from "./render/inline";
-import { hauntingToStatus } from "./render/status";
+import { renderInline, renderReviewBody } from "./render/inline";
+import { hauntingToStatus, pendingStatus } from "./render/status";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel } from "./llm/models";
 import { generateStructured } from "./llm/structured";
-import { loadPrompt } from "./prompts";
+import { loadAllPrompts } from "./prompts";
 import {
   ReviewOutput,
   Verdict,
@@ -75,13 +75,12 @@ async function readGuidelines(
   repo: string,
   baseRef: string,
 ): Promise<string> {
-  const parts: string[] = [];
-  for (const path of ["AGENTS.md", "CLAUDE.md", ".cursorrules"]) {
-    const content = await api.getFileContent(octokit, owner, repo, path, baseRef);
-    if (content) parts.push(`### ${path}\n${content.slice(0, 2000)}`);
-  }
-  return parts.join("\n\n");
+  // Repo rules come from the BASE branch (never head): a PR can't change its own rules.
+  return buildRepoRules(octokit, owner, repo, baseRef);
 }
+
+// Prompts + voice are loaded once at startup and cached (never send {{...}} to Gemini).
+const PROMPTS = loadAllPrompts();
 
 async function runHuntForPr(
   owner: string,
@@ -94,10 +93,11 @@ async function runHuntForPr(
   const pr = await api.getPr(octokit, owner, repo, prNumber);
   if (pr.state !== "open" || pr.draft) return null;
 
+  const pending = pendingStatus();
   await api.setCommitStatus(octokit, owner, repo, pr.headSha, {
-    context: "Bug Hunter 🎃",
+    context: pending.context,
     state: "pending",
-    description: "🔦 The hunt has begun…",
+    description: pending.description,
   });
 
   const files = await api.listFiles(octokit, owner, repo, prNumber);
@@ -105,12 +105,7 @@ async function runHuntForPr(
   const annotated = annotateDiff(files.filter((f) => !f.isBinary && !!f.patch)).text;
   const context = await buildContext(octokit, owner, repo, pr.headSha, files);
 
-  const prompts = {
-    system: loadPrompt("review.system"),
-    user: loadPrompt("review.user"),
-    verify: loadPrompt("verify"),
-    seance: loadPrompt("seance"),
-  };
+  const prompts = PROMPTS;
 
   const deps: HuntDeps = {
     review: ({ system, user }) =>
@@ -156,6 +151,7 @@ async function runHuntForPr(
         skipped: result.skipped,
         lurking: result.kept.filter((f) => !f.position),
         possessionAttempt: result.possessionAttempt,
+        possessionNote: result.notes.find((n) => n.startsWith("POSSESSION:"))?.slice("POSSESSION:".length).trim(),
         counts: result.counts,
         level: result.haunting.level,
         title: result.haunting.title,
@@ -184,6 +180,7 @@ async function runHuntForPr(
             ? { start_line: f.position!.start_line, start_side: "RIGHT" as const }
             : {}),
         })),
+        scrubSecrets(renderReviewBody(anchored.length)),
       );
     }
   } catch (e) {
