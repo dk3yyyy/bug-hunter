@@ -245,7 +245,7 @@ export async function setCommitStatus(
   owner: string,
   repo: string,
   headSha: string,
-  status: { context: string; state: "success" | "failure" | "pending"; description: string },
+  status: { context: string; state: "success" | "failure" | "pending" | "error"; description: string },
 ): Promise<void> {
   try {
     await octokit.rest.repos.createCommitStatus({

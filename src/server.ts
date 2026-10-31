@@ -19,10 +19,12 @@ import {
 } from "./github/webhooks";
 import { runHunt, type HuntDeps } from "./hunt/pipeline";
 import { buildContext, buildRepoRules } from "./hunt/context";
+import { filterFiles } from "./hunt/filters";
+import { BoundedSet, HuntRateLimiter, planBudget, trimContext } from "./hunt/budget";
 import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
-import { hauntingToStatus, pendingStatus } from "./render/status";
+import { errorStatus, hauntingToStatus, pendingStatus } from "./render/status";
 import { renderLanding, renderDashboard, renderSummoned, renderConnect } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
@@ -41,22 +43,22 @@ const app = new Hono();
 const webhooks = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET });
 const queue = new PQueue({ concurrency: 2 });
 
-const seenDeliveries = new Set<string>();
+const seenDeliveries = new BoundedSet(5000);
+const rateLimiter = new HuntRateLimiter(10, 60 * 60 * 1000); // SPEC §17: max 10 hunts per PR per hour
+
+/** Thrown when a PR has used up its hunts for the hour (SPEC §17). */
+export class HuntRateLimitedError extends Error {
+  override name = "HuntRateLimitedError";
+}
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
-// Upper bounds for prompt-bound text (unbounded PRs = unbounded LLM spend).
-const MAX_DIFF_CHARS = 120_000;
-const MAX_CONTEXT_CHARS = 60_000;
 // One in-flight hunt per PR (duplicate runs = duplicate comments + spend).
 const runningHunts = new Set<string>();
-// seenDeliveries and hunts are append-only: cap them so a long-lived server
-// cannot grow the heap without bound.
-const MAX_DELIVERIES = 10_000;
+// hunts is append-only: cap it so a long-lived server cannot grow without bound.
 const MAX_HUNTS = 200;
 
 function rememberDelivery(id: string): boolean {
   if (seenDeliveries.has(id)) return false;
-  if (seenDeliveries.size >= MAX_DELIVERIES) seenDeliveries.clear();
   seenDeliveries.add(id);
   return true;
 }
@@ -68,6 +70,10 @@ const hunts = new Map<string, HuntRecord>();
 
 function logFailure(repo: string, pr: number, err: unknown): void {
   const name = err instanceof Error ? err.name : "UnknownError";
+  if (name === "HuntRateLimitedError") {
+    console.warn("hunt skipped: rate limited", { repo, pr });
+    return;
+  }
   console.error("hunt failed", { repo, pr, error: name });
 }
 
@@ -97,6 +103,7 @@ async function runHuntForPr(
   owner: string,
   repo: string,
   prNumber: number,
+  expectedHeadSha?: string,
 ): Promise<HuntRecord | null> {
   // Per-PR mutual exclusion: a debounced synchronize hunt and a manual @bot
   // hunt must not run concurrently (duplicate inline comments + double spend).
@@ -104,7 +111,7 @@ async function runHuntForPr(
   if (runningHunts.has(huntKey)) return null;
   runningHunts.add(huntKey);
   try {
-    return await runHuntForPrInner(owner, repo, prNumber);
+    return await runHuntForPrInner(owner, repo, prNumber, expectedHeadSha);
   } finally {
     runningHunts.delete(huntKey);
   }
@@ -114,12 +121,20 @@ async function runHuntForPrInner(
   owner: string,
   repo: string,
   prNumber: number,
+  expectedHeadSha?: string,
 ): Promise<HuntRecord | null> {
   const octokit = getOctokit();
 
   // Re-fetch current state; drop closed/draft/stale before spending.
   const pr = await api.getPr(octokit, owner, repo, prNumber);
   if (pr.state !== "open" || pr.draft) return null;
+  // Stale event (SPEC §8): the head moved since this webhook fired. The newer
+  // push has its own (debounced) synchronize event, so skip this one.
+  if (expectedHeadSha && expectedHeadSha !== pr.headSha) return null;
+
+  if (!rateLimiter.tryAcquire(`${owner}/${repo}#${prNumber}`)) {
+    throw new HuntRateLimitedError("max hunts per PR per hour reached");
+  }
 
   const pending = pendingStatus();
   await api.setCommitStatus(octokit, owner, repo, pr.headSha, {
@@ -128,15 +143,39 @@ async function runHuntForPrInner(
     description: pending.description,
   });
 
+  try {
+    return await huntOpenPr(octokit, owner, repo, prNumber, pr);
+  } catch (e) {
+    // Never leave the PR stuck on "pending" (status error copy comes from voice.json).
+    const err = errorStatus();
+    await api.setCommitStatus(octokit, owner, repo, pr.headSha, err);
+    throw e;
+  }
+}
+
+async function huntOpenPr(
+  octokit: ReturnType<typeof getOctokit>,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  pr: Awaited<ReturnType<typeof api.getPr>>,
+): Promise<HuntRecord> {
   const files = await api.listFiles(octokit, owner, repo, prNumber);
   const repoRules = await readGuidelines(octokit, owner, repo, pr.baseRef);
-  // Cap prompt-bound text: unbounded PRs mean unbounded LLM spend.
-  const annotated = annotateDiff(files.filter((f) => !f.isBinary && !!f.patch), {
-    maxChars: MAX_DIFF_CHARS,
-  }).text;
-  const context = (await buildContext(octokit, owner, repo, pr.headSha, files)).slice(
-    0,
-    MAX_CONTEXT_CHARS,
+
+  // Only hunted files reach the model: lockfiles, generated, vendored, minified,
+  // binary and over-limit files are filtered out here (SPEC §11 step 2). The
+  // pipeline still receives every file so it can list skips in the Graveyard.
+  const { kept: huntedFiles } = filterFiles(files);
+
+  // Input budget (~30k tokens, SPEC §11 step 5): the diff gets priority,
+  // context is trimmed to whatever is left.
+  const fullDiff = annotateDiff(huntedFiles).text;
+  const { diffMaxChars, contextMaxChars } = planBudget(fullDiff.length);
+  const annotated = annotateDiff(huntedFiles, { maxChars: diffMaxChars }).text;
+  const context = trimContext(
+    await buildContext(octokit, owner, repo, pr.headSha, huntedFiles),
+    contextMaxChars,
   );
 
   const prompts = PROMPTS;
@@ -183,7 +222,8 @@ async function runHuntForPrInner(
         kept: result.kept,
         exorcised: result.exorcised,
         skipped: result.skipped,
-        lurking: result.kept.filter((f) => !f.position),
+        lurking: result.lurking,
+        verifierFailed: result.verifierFailed,
         possessionAttempt: result.possessionAttempt,
         possessionNote: result.notes.find((n) => n.startsWith("POSSESSION:"))?.slice("POSSESSION:".length).trim(),
         counts: result.counts,
@@ -194,7 +234,7 @@ async function runHuntForPrInner(
     ),
   );
 
-  // Inline comments (Step 3): anchored + fingerprint-deduped.
+  // Inline comments (Step 3): kept findings are all anchored; fingerprint-deduped.
   try {
     const existing = await api.listExistingFingerprints(octokit, owner, repo, prNumber);
     const fresh = result.kept.filter((f) => !existing.has(f.fingerprint));
@@ -233,6 +273,9 @@ async function runHuntForPrInner(
     description: status.description,
   });
 
+  // Only verifier drops count as "false alarms exorcised" (code-side trims don't).
+  const falseAlarms = result.exorcised.filter((e) => e.source !== "trimmed").length;
+
   const record: HuntRecord = {
     id: `h_${Math.random().toString(36).slice(2, 10)}`,
     repo: `${owner}/${repo}`,
@@ -242,15 +285,14 @@ async function runHuntForPrInner(
     hauntingLevel: result.haunting.level,
     counts: result.counts,
     possessionAttempt: result.possessionAttempt,
-    exorcised: result.exorcised.length,
+    exorcised: falseAlarms,
     keptCount: result.kept.length,
-    // Dashboard points at the posted comment line (resolved position), not the
-    // pre-snap verifier line.
+    // Dashboard points at the validated position (resolved), not the raw model line.
     topFindings: result.kept.slice(0, 3).map((f) => ({
       severity: f.adjusted_severity,
       title: f.title,
       file: f.file,
-      line: f.position?.end_line ?? f.start_line,
+      line: f.position?.start_line ?? f.start_line,
     })),
     finishedAt: new Date().toISOString(),
   };
@@ -273,7 +315,7 @@ async function runHuntForPrInner(
     counts: result.counts,
     top_findings: record.topFindings,
     possession_attempt: result.possessionAttempt,
-    false_alarms_exorcised: result.exorcised.length,
+    false_alarms_exorcised: falseAlarms,
     finished_at: record.finishedAt,
   };
   await notifyHunt(n8n);
@@ -303,7 +345,7 @@ webhooks.on(
     const prKey = `${target.owner}/${target.repo}#${target.prNumber}`;
     const run = () =>
       void queue.add(() =>
-        runHuntForPr(target.owner, target.repo, target.prNumber).catch((e) =>
+        runHuntForPr(target.owner, target.repo, target.prNumber, target.headSha).catch((e) =>
           logFailure(`${target.owner}/${target.repo}`, target.prNumber, e),
         ),
       );
@@ -424,6 +466,9 @@ app.post("/api/hunt", async (c) => {
       return c.json({ error: "PR is closed, draft, not found, or a hunt is already running" }, 404);
     return c.json(record);
   } catch (e) {
+    if (e instanceof HuntRateLimitedError) {
+      return c.json({ error: "rate limited: max 10 hunts per PR per hour" }, 429);
+    }
     logFailure(`${owner}/${repo}`, prNumber, e);
     return c.json({ error: e instanceof Error ? e.name : "hunt failed" }, 500);
   }

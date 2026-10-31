@@ -1,0 +1,548 @@
+{
+  "name": "🚨 Haunting Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bughunter-hunt",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000001",
+      "name": "Bug Hunter Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        300
+      ],
+      "webhookId": "bughunter-hunt",
+      "credentials": {
+        "headerAuth": {
+          "id": null,
+          "name": "BugHunter Header Auth — REPLACE ME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000201",
+              "name": "creature_label",
+              "value": "={{ $json.haunting_level === 'possessed' ? '💀 Possessed' : $json.haunting_level === 'haunted' ? '👻 Haunted' : $json.haunting_level === 'restless' ? '🦇 Restless' : $json.haunting_level === 'whispers' ? '🕯️ Whispers' : '🌕 Clear' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000202",
+              "name": "total_spirits",
+              "value": "={{ ($json.counts.critical || 0) + ($json.counts.high || 0) + ($json.counts.medium || 0) + ($json.counts.low || 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000203",
+              "name": "timestamp",
+              "value": "={{ $json.finished_at ? new Date($json.finished_at).toLocaleString() : new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000002",
+      "name": "Normalize Hunt Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        80,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000301",
+              "leftValue": "={{ $json.repo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": false
+              }
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000302",
+              "leftValue": "={{ $json.pr_number }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000003",
+      "name": "Valid Payload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Hunt Ledger",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "time": "={{ $json.timestamp }}",
+            "repo": "={{ $json.repo }}",
+            "PR #": "={{ $json.pr_number }}",
+            "title": "={{ $json.pr_title }}",
+            "haunting level": "={{ $json.creature_label }}",
+            "demons": "={{ $json.counts.critical || 0 }}",
+            "ghosts": "={{ $json.counts.high || 0 }}",
+            "bats": "={{ $json.counts.medium || 0 }}",
+            "cobwebs": "={{ $json.counts.low || 0 }}",
+            "possession attempt": "={{ $json.possession_attempt ? 'yes' : 'no' }}",
+            "false alarms exorcised": "={{ $json.false_alarms_exorcised || 0 }}",
+            "PR link": "={{ $json.pr_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "repo",
+              "displayName": "repo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PR #",
+              "displayName": "PR #",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "haunting level",
+              "displayName": "haunting level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "demons",
+              "displayName": "demons",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ghosts",
+              "displayName": "ghosts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bats",
+              "displayName": "bats",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cobwebs",
+              "displayName": "cobwebs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "possession attempt",
+              "displayName": "possession attempt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "false alarms exorcised",
+              "displayName": "false alarms exorcised",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PR link",
+              "displayName": "PR link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b7c1e0aa-0000-4000-8000-000000000011",
+      "name": "Append to Hunt Ledger",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        620,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account — REPLACE ME"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000501",
+              "leftValue": "={{ $('Normalize Hunt Payload').item.json.haunting_level }}",
+              "rightValue": "haunted",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            },
+            {
+              "id": "a1b2c3d4-0000-4000-8000-000000000502",
+              "leftValue": "={{ $('Normalize Hunt Payload').item.json.haunting_level }}",
+              "rightValue": "possessed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000005",
+      "name": "Haunted or Possessed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "REPLACE_WITH_DEMO_INBOX@example.com",
+        "subject": "=🎃 Bug Hunter: PR #{{ $('Normalize Hunt Payload').item.json.pr_number }} is {{ $('Normalize Hunt Payload').item.json.haunting_level }}",
+        "emailType": "html",
+        "message": "={{ (() => { const p = $('Normalize Hunt Payload').item.json; const e = (s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')); const items = (p.top_findings || []).map(f => '<li><b>' + e(f.severity) + '</b>: ' + e(f.title) + ' (<code>' + e(f.file) + ':' + e(f.line) + '</code>)</li>').join(''); return '<h2>' + e(p.creature_label) + ': PR #' + e(p.pr_number) + '</h2>' + '<p><b>' + e(p.repo) + '</b>: ' + e(p.pr_title) + '</p>' + '<p>Spirits found: ' + e(p.total_spirits) + ' · false alarms exorcised: ' + e(p.false_alarms_exorcised || 0) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') + (p.possession_attempt ? '<p>🪄 Someone tried to possess the reviewer. Bug Hunter resisted.</p>' : '') + '<p><a href=\"' + e(p.pr_url) + '\">Open the pull request</a></p>'; })() }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b7c1e0aa-0000-4000-8000-000000000010",
+      "name": "Gmail Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1160,
+        200
+      ],
+      "webhookId": "b7c1e0aa-0000-4000-8000-0000000000aa",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": null,
+          "name": "Gmail account — REPLACE ME"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-000000000006",
+      "name": "No Alert Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Hunt Errors",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "time": "={{ $now.toISO() }}",
+            "stage": "={{ $prevNode.name }}",
+            "error": "={{ $json.error ? ($json.error.message || JSON.stringify($json.error)) : 'invalid payload: repo or pr_number missing' }}",
+            "repo": "={{ $json.repo || '' }}",
+            "PR #": "={{ $json.pr_number || '' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "repo",
+              "displayName": "repo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PR #",
+              "displayName": "PR #",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b7c1e0aa-0000-4000-8000-000000000012",
+      "name": "Log to Hunt Errors",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1160,
+        660
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account — REPLACE ME"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## 🎃 Haunting Alert (full)\n\nBefore activating:\n1. Attach the **Header Auth**, **Google Sheets** and **Gmail** credentials (all say REPLACE ME).\n2. Set the spreadsheet ID on both Sheets nodes (tabs: `Hunt Ledger`, `Hunt Errors`).\n3. Set the Gmail **To** address to your demo inbox.\n4. Settings → Error workflow → `🧯 Hunt Errors`.\n\nInvalid payloads, Sheets failures and Gmail failures all land in **Hunt Errors**.",
+        "height": 300,
+        "width": 420
+      },
+      "id": "b7c1e0aa-0000-4000-8000-000000000013",
+      "name": "Read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -60
+      ]
+    }
+  ],
+  "connections": {
+    "Bug Hunter Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Hunt Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Hunt Payload": {
+      "main": [
+        [
+          {
+            "node": "Valid Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Payload": {
+      "main": [
+        [
+          {
+            "node": "Append to Hunt Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log to Hunt Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Hunt Ledger": {
+      "main": [
+        [
+          {
+            "node": "Haunted or Possessed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log to Hunt Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Haunted or Possessed": {
+      "main": [
+        [
+          {
+            "node": "Gmail Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Alert Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Alert": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Log to Hunt Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

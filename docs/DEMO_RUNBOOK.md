@@ -201,7 +201,7 @@ The head commit shows a **`Bug Hunter 🎃`** status: `failure` with
 
 Open http://localhost:3000/dashboard — a styled table of recent hunts (in
 memory): repo, PR link, haunting-level badge, spirit count. Also try
-`GET /api/hunts` for the raw JSON list.
+`GET /api/hunts` (with the `X-BugHunter-Secret` header) for the raw JSON list.
 
 ---
 

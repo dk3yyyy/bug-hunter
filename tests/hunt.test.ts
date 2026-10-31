@@ -254,7 +254,9 @@ describe("applyVerdict", () => {
     };
     const { kept, exorcised } = applyVerdict([candidate], verdict);
     expect(kept).toHaveLength(0);
-    expect(exorcised).toEqual([{ id: "f1", title: "Title Here", severity: "high", reason: "unreachable" }]);
+    expect(exorcised).toEqual([
+      { id: "f1", title: "Title Here", severity: "high", reason: "unreachable", source: "verifier" },
+    ]);
   });
 
   it("applies downgrade adjustments and corrected lines", () => {
@@ -284,12 +286,15 @@ describe("applyVerdict", () => {
     expect(k.fingerprint).toBe(fingerprint(candidate));
   });
 
-  it("treats a missing verdict as fail-closed (exorcised, never posted)", () => {    const verdict: VerdictT = { results: [] };
+  it("keeps a candidate with no verdict, but never blesses its fix", () => {
+    const verdict: VerdictT = { results: [] };
     const { kept, exorcised } = applyVerdict([candidate], verdict);
-    expect(kept).toHaveLength(0);
-    expect(exorcised).toEqual([
-      { id: "f1", title: "Title Here", severity: "high", reason: "no verdict returned" },
-    ]);
+    expect(exorcised).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].adjusted_confidence).toBe(0.8);
+    expect(kept[0].adjusted_severity).toBe("high");
+    expect(kept[0].start_line).toBe(10);
+    expect(kept[0].fix_ok).toBe(false);
   });
 });
 

@@ -111,8 +111,8 @@ for you.
 | POST | `/webhooks/github` | webhook secret | receive GitHub PR / issue-comment events |
 | POST | `/api/hunt` | `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
 | POST | `/api/connect` | `X-BugHunter-Secret` | create a repo webhook via the PAT: `{ "repo": "owner/name" }` |
-| GET | `/api/hunts` | none | recent hunts (JSON) |
-| GET | `/api/hunts/:id` | none | one hunt (JSON) |
+| GET | `/api/hunts` | `X-BugHunter-Secret` | recent hunts (JSON) |
+| GET | `/api/hunts/:id` | `X-BugHunter-Secret` | one hunt (JSON) |
 | GET | `/dashboard` | none | HTML results table |
 | GET | `/health` | none | liveness |
 

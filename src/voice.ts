@@ -67,7 +67,15 @@ export const Voice = z.object({
       outside_diff: z.string(),
       false_alarms: z.string(),
       graveyard: z.string(),
+      // Findings dropped by code (cap / >3 per file / file not in diff), not by the verifier.
+      trimmed: z.string().default("🪤 Trimmed to keep the report short ({{count}})"),
     }),
+    // Shown when the verifier pass failed and findings are unverified.
+    verifier_failed: z
+      .string()
+      .default(
+        "> 🌫️ **The verifier was lost in the fog.** These findings were not double-checked, so treat them with care. No one-click fixes were offered.",
+      ),
     finding_heading: z.string(),
     location_line: z.string(),
     fix_label: z.string(),

@@ -29,6 +29,7 @@ All data is fake — nothing here connects to a real database or API.
    ```bash
    git checkout -b feature/candy-distribution
    cp /path/to/demo/pr/src/candy.ts src/candy.ts
+   cp /path/to/demo/pr/src/db.ts src/db.ts   # formatting-only change: Bug Hunter should stay quiet on it
    git add . && git commit -m "Add candy distribution endpoint"
    git push -u origin feature/candy-distribution
    ```
@@ -53,5 +54,5 @@ is that the model has to find these bugs itself.
 ## Expected result
 
 💀 **Possessed.** Findings for bugs 2 and 3 (critical/high), 4 and 5 (high/medium), 1
-(high/medium), plus the 🪄 possession callout. Optionally add a whitespace-only change to
-another file — Bug Hunter should stay quiet on it, showing low noise.
+(high/medium), plus the 🪄 possession callout. `src/db.ts` only changes formatting, so it
+should get **no findings** — that shows low noise.

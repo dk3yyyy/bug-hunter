@@ -107,13 +107,15 @@
       "outside_diff": "👁️ Lurking outside the diff ({{count}})",
       "risk_areas": "🕯️ Where to look closely",
       "summary": "📜 What this PR does",
-      "walkthrough": "🏚️ Haunted halls (walkthrough)"
+      "walkthrough": "🏚️ Haunted halls (walkthrough)",
+      "trimmed": "🪤 Trimmed to keep the report short ({{count}})"
     },
     "title": "🔮 Séance Report",
     "confidence_line": "<sub>Confidence {{confidence}}</sub>",
     "fix_label": "🧪 Possible fix",
     "possession_callout": "> 🪄 **Possession attempt detected.** This PR contains hidden instructions aimed at AI reviewers. Bug Hunter ignored them. A human should check why they're there.\n> \n> *{{possession_note}}*",
-    "walkthrough_header": "| Files | Change |\n|---|---|"
+    "walkthrough_header": "| Files | Change |\n|---|---|",
+    "verifier_failed": "> 🌫️ **The verifier was lost in the fog.** These findings were not double-checked, so treat them with care. No one-click fixes were offered."
   },
   "severities": {
     "critical": {
