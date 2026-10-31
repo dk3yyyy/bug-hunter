@@ -416,11 +416,10 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
 // ---------------------------------------------------------------------------
 
 const repoUrl = env.LANDING_REPO_URL || "https://github.com/dk3yyyy/bug-hunter";
-const connectUrl = env.APP_URL
-  ? `${env.APP_URL.replace(/\/$/, "")}/connect`
-  : `${repoUrl}#try-it-in-5-minutes`;
 
-app.get("/", (c) => c.html(renderLanding({ connectUrl, repoUrl })));
+// "Connect a repo" goes to this server's /connect (same origin), which works on
+// localhost and any deployment. No more sending people to the GitHub repo.
+app.get("/", (c) => c.html(renderLanding({ connectUrl: "/connect", repoUrl })));
 app.get("/connect", (c) => c.html(renderConnect(env.PUBLIC_URL, env.BOT_HANDLE)));
 app.get("/health", (c) => c.json({ ok: true, queued: queue.size }));
 
