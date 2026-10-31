@@ -7,6 +7,7 @@ import { Webhooks } from "@octokit/webhooks";
 import PQueue from "p-queue";
 import { env } from "./env";
 import { getOctokit } from "./github/client";
+import { installUrl, addRepo, removeRepo, listRepos } from "./github/app";
 import * as api from "./github/api";
 import {
   isSelfEvent,
@@ -88,7 +89,7 @@ function authSecret(c: { req: { header: (n: string) => string | undefined } }): 
 }
 
 async function readGuidelines(
-  octokit: ReturnType<typeof getOctokit>,
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
   owner: string,
   repo: string,
   baseRef: string,
@@ -105,6 +106,7 @@ async function runHuntForPr(
   repo: string,
   prNumber: number,
   expectedHeadSha?: string,
+  installationId?: number,
 ): Promise<HuntRecord | null> {
   // Per-PR mutual exclusion: a debounced synchronize hunt and a manual @bot
   // hunt must not run concurrently (duplicate inline comments + double spend).
@@ -112,7 +114,7 @@ async function runHuntForPr(
   if (runningHunts.has(huntKey)) return null;
   runningHunts.add(huntKey);
   try {
-    return await runHuntForPrInner(owner, repo, prNumber, expectedHeadSha);
+    return await runHuntForPrInner(owner, repo, prNumber, expectedHeadSha, installationId);
   } finally {
     runningHunts.delete(huntKey);
   }
@@ -123,8 +125,9 @@ async function runHuntForPrInner(
   repo: string,
   prNumber: number,
   expectedHeadSha?: string,
+  installationId?: number,
 ): Promise<HuntRecord | null> {
-  const octokit = getOctokit();
+  const octokit = await getOctokit(installationId);
 
   // Re-fetch current state; drop closed/draft/stale before spending.
   const pr = await api.getPr(octokit, owner, repo, prNumber);
@@ -155,7 +158,7 @@ async function runHuntForPrInner(
 }
 
 async function huntOpenPr(
-  octokit: ReturnType<typeof getOctokit>,
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
   owner: string,
   repo: string,
   prNumber: number,
@@ -346,7 +349,13 @@ webhooks.on(
     const prKey = `${target.owner}/${target.repo}#${target.prNumber}`;
     const run = () =>
       void queue.add(() =>
-        runHuntForPr(target.owner, target.repo, target.prNumber, target.headSha).catch((e) =>
+        runHuntForPr(
+          target.owner,
+          target.repo,
+          target.prNumber,
+          target.headSha,
+          target.installationId,
+        ).catch((e) =>
           logFailure(`${target.owner}/${target.repo}`, target.prNumber, e),
         ),
       );
@@ -391,8 +400,9 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
   const [owner, repo] = full.split("/");
   if (!owner || !repo) return;
   const pr = p.issue.number;
+  const installationId = p.installation?.id;
 
-  const octokit = getOctokit();
+  const octokit = await getOctokit(installationId);
   if (p.comment?.id) await api.addReaction(octokit, owner, repo, p.comment.id, "eyes");
 
   if (cmd.kind === "hunt" || cmd.kind === "seance") {
@@ -404,12 +414,53 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
     commandCooldown.set(key, Date.now());
     if (commandCooldown.size > 1000) commandCooldown.clear();
     void queue.add(() =>
-      runHuntForPr(owner, repo, pr).catch((e) => logFailure(`${owner}/${repo}`, pr, e)),
+      runHuntForPr(owner, repo, pr, undefined, installationId).catch((e) =>
+        logFailure(`${owner}/${repo}`, pr, e),
+      ),
     );
     return;
   }
   // spellbook / unknown
   await api.replyComment(octokit, owner, repo, pr, SPELLBOOK).catch(() => {});
+});
+
+// GitHub App install lifecycle (Step 4): track which repos are connected.
+// These only update the in-memory set — they do not start hunts.
+type InstallPayload = {
+  action: string;
+  installation?: { id: number; account?: { login: string } | null } | null;
+  repositories?: Array<{ full_name: string }>;
+  repositories_added?: Array<{ full_name: string }>;
+  repositories_removed?: Array<{ full_name: string }>;
+};
+
+webhooks.on("installation", async ({ id, payload }) => {
+  const p = payload as InstallPayload;
+  if (!rememberDelivery(id)) return;
+  const account = p.installation?.account?.login;
+  if (p.action === "created") {
+    for (const r of p.repositories ?? []) addRepo(r.full_name);
+    console.log("app installed", { account, repos: (p.repositories ?? []).length });
+  } else if (p.action === "deleted") {
+    if (account) {
+      for (const repo of listRepos()) {
+        if (repo.startsWith(`${account}/`)) removeRepo(repo);
+      }
+    }
+    console.log("app uninstalled", { account });
+  }
+});
+
+webhooks.on("installation_repositories", async ({ id, payload }) => {
+  const p = payload as InstallPayload;
+  if (!rememberDelivery(id)) return;
+  for (const r of p.repositories_added ?? []) addRepo(r.full_name);
+  for (const r of p.repositories_removed ?? []) removeRepo(r.full_name);
+  console.log("app repositories changed", {
+    action: p.action,
+    added: (p.repositories_added ?? []).length,
+    removed: (p.repositories_removed ?? []).length,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -418,10 +469,19 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
 
 const repoUrl = env.LANDING_REPO_URL || "https://github.com/dk3yyyy/bug-hunter";
 
-// "Connect a repo" goes to this server's /connect (same origin), which works on
-// localhost and any deployment. No more sending people to the GitHub repo.
-app.get("/", (c) => c.html(renderLanding({ connectUrl: "/connect", repoUrl })));
+// "Connect a repo": in App mode this is the GitHub App install page; in PAT mode
+// it's this server's /connect (same origin), which works on localhost and any
+// deployment. No more sending people to the GitHub repo.
+const connectUrl = env.GITHUB_MODE === "app" ? installUrl(env.GITHUB_APP_SLUG) : "/connect";
+app.get("/", (c) => c.html(renderLanding({ connectUrl, repoUrl })));
 app.get("/connect", (c) => c.html(renderConnect(env.PUBLIC_URL, env.BOT_HANDLE)));
+
+// One-click install redirect (Step 4): app mode → GitHub install page, pat → /connect.
+app.get("/summon", (c) => {
+  if (env.GITHUB_MODE === "app") return c.redirect(installUrl(env.GITHUB_APP_SLUG));
+  return c.redirect("/connect");
+});
+
 app.get("/health", (c) => c.json({ ok: true, queued: queue.size }));
 
 app.post("/webhooks/github", async (c) => {
@@ -486,7 +546,7 @@ app.post("/api/connect", async (c) => {
   if (!owner || !repo) return c.json({ error: "need { repo: 'owner/name' }" }, 400);
   try {
     const id = await api.createRepoWebhook(
-      getOctokit(),
+      await getOctokit(),
       owner,
       repo,
       `${env.PUBLIC_URL.replace(/\/$/, "")}/webhooks/github`,

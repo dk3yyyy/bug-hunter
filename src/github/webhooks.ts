@@ -13,6 +13,7 @@ export interface PrWebhookPayload {
   sender?: { type?: string; login?: string };
   comment?: { id?: number; body?: string; author_association?: string };
   issue?: { number: number; pull_request?: unknown };
+  installation?: { id: number } | null;
 }
 
 const SELF_MARKER = /<!--\s*bughunter:/i;
@@ -54,13 +55,19 @@ export function shouldHunt(p: PrWebhookPayload): { ok: boolean; reason?: string 
 
 export function prTarget(
   p: PrWebhookPayload,
-): { owner: string; repo: string; prNumber: number; headSha?: string } | null {
+): { owner: string; repo: string; prNumber: number; headSha?: string; installationId?: number } | null {
   const full = p.repository?.full_name;
   const pr = p.pull_request?.number;
   if (typeof full !== "string" || typeof pr !== "number") return null;
   const [owner, repo] = full.split("/");
   if (!owner || !repo) return null;
-  return { owner, repo, prNumber: pr, headSha: p.pull_request?.head?.sha };
+  return {
+    owner,
+    repo,
+    prNumber: pr,
+    headSha: p.pull_request?.head?.sha,
+    installationId: p.installation?.id,
+  };
 }
 
 /** Step 4: does an issue_comment mention the bot with a known command? */
