@@ -6,6 +6,12 @@ The `.json` files go here after you build the workflows in the n8n UI and use
 
 ## Workflow 1: 🚨 Haunting Alert (MUST) — export as `haunting-alert.json`
 
+> **Fastest path:** import `haunting-alert.full.json` (all nodes wired, including Google Sheets,
+> Gmail and the Hunt Errors branch) plus `hunt-errors.json` (Error Trigger workflow). Attach the
+> three credentials, set the spreadsheet ID and the Gmail address, set the error workflow, then
+> re-export over `haunting-alert.json`. If the full file won't import on your n8n version, fall
+> back to the manual steps in `IMPORT.md`.
+
 Nodes, in order:
 
 1. **Webhook** — `POST /webhook/bughunter-hunt`. Add a **Header Auth** credential that checks

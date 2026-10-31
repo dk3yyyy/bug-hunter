@@ -83,6 +83,7 @@ echo "🕯️  Creating branch $PR_BRANCH ..."
 git checkout -q -b "$PR_BRANCH"
 mkdir -p src
 cp "$DEMO_DIR/pr/src/candy.ts" src/candy.ts
+cp "$DEMO_DIR/pr/src/db.ts" src/db.ts   # formatting-only change (should get no findings)
 git add -A
 git commit -q -m "$PR_TITLE"
 git push -q -u origin "$PR_BRANCH"

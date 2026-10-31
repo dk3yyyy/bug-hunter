@@ -45,8 +45,9 @@ export function downgradeSeverity(
  * `adjusted_severity` / `adjusted_confidence`. `position` is left `null` here —
  * it is resolved later in the pipeline against the commentable diff.
  *
- * A candidate with no matching VerdictResult (by id) is treated as fail-closed:
- * exorcised with reason "no verdict returned", never posted.
+ * A candidate with no matching VerdictResult (by id) is kept with its
+ * original values, but fix_ok = false: an unverified fix must never become a
+ * one-click ```suggestion block. Confidence is clamped into [0, 1].
  */
 export function applyVerdict(
   candidates: Array<FindingT & { id: string }>,
@@ -60,14 +61,28 @@ export function applyVerdict(
   for (const c of candidates) {
     const result = byId.get(c.id);
 
-    // Missing verdict ⇒ fail closed: a candidate the verifier never judged
-    // must not be posted at full confidence.
+    // Missing verdict ⇒ keep unverified: original confidence (clamped),
+    // original severity, but fix_ok = false so it can never render as a
+    // one-click suggestion. The report banner (verifierFailed) marks these.
     if (!result) {
-      exorcised.push({
+      kept.push({
         id: c.id,
-        title: c.title,
+        fingerprint: fingerprint(c),
+        file: c.file,
+        start_line: c.start_line,
+        end_line: c.end_line,
         severity: c.severity,
-        reason: "no verdict returned",
+        adjusted_severity: c.severity,
+        category: c.category,
+        confidence: c.confidence,
+        adjusted_confidence: clampConfidence(c.confidence),
+        title: c.title,
+        explanation: c.explanation,
+        evidence_quote: c.evidence_quote,
+        fix_kind: c.fix_kind,
+        fix_code: c.fix_code,
+        fix_ok: false,
+        position: null,
       });
       continue;
     }
@@ -78,6 +93,7 @@ export function applyVerdict(
         title: c.title,
         severity: c.severity,
         reason: result.reason,
+        source: "verifier",
       });
       continue;
     }

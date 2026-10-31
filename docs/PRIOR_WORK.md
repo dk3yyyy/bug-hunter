@@ -19,6 +19,10 @@ Next.js + Prisma AI PR reviewer. The following already existed before the hackat
 - **Envelope-encrypted provider keys** (AES-256-GCM, AAD-bound) stored server-side only.
 - **Admin-token auth** for the dashboard and API.
 
+Not everything in that list was carried over: the **encrypted provider-key storage** and the
+**admin-token auth** stayed in `open-pr-reviewer` and are **not part of this repo** (Bug Hunter
+reads keys from `.env` and protects its API with the shared `X-BugHunter-Secret` header).
+
 All of the above is prior work. Per spec §0.5 ("keep working code and adapt this design to
 it"), the diff, webhook, and posting algorithms were **ported and adapted** from that repo
 rather than written fresh for this event.

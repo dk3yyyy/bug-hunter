@@ -88,6 +88,8 @@ export interface SeanceArgs {
   possessionAttempt: boolean;
   /** First POSSESSION: note from the model, if any (shown inside the callout). */
   possessionNote?: string;
+  /** The verifier pass failed; findings are unverified. */
+  verifierFailed?: boolean;
   counts: HuntCounts;
   level: HauntingLevel;
   title: string;
@@ -108,10 +110,15 @@ export function renderSeance(args: SeanceArgs): string {
     lurking,
     possessionAttempt,
     possessionNote,
+    verifierFailed,
     counts,
     level,
     title,
   } = args;
+
+  // Only verifier drops are "false alarms"; code-side trims get their own section.
+  const falseAlarms = exorcised.filter((e) => e.source !== "trimmed");
+  const trimmed = exorcised.filter((e) => e.source === "trimmed");
 
   const lines: string[] = [];
   const s = v.seance;
@@ -129,6 +136,11 @@ export function renderSeance(args: SeanceArgs): string {
     lines.push(
       fillTemplate(s.possession_callout, { possession_note: escapeHtml(note) }),
     );
+    lines.push("");
+  }
+
+  if (verifierFailed && kept.length > 0) {
+    lines.push(s.verifier_failed);
     lines.push("");
   }
 
@@ -170,13 +182,16 @@ export function renderSeance(args: SeanceArgs): string {
           title: escapeHtml(f.title),
         }),
       );
-      const lineRange =
-        f.start_line === f.end_line ? `${f.start_line}` : `${f.start_line}-${f.end_line}`;
+      // Prefer the validated/snapped position over the model's raw lines.
+      const startLine = f.position?.start_line ?? f.start_line;
+      const endLine = f.position?.end_line ?? f.end_line;
+      const lineRange = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
+      const anchor = startLine === endLine ? `#L${startLine}` : `#L${startLine}-L${endLine}`;
       lines.push(
         fillTemplate(s.location_line, {
           file: escapeHtml(f.file),
           line_range: lineRange,
-          line_url: `https://github.com/${owner}/${repo}/blob/${headSha}/${f.file}#L${f.start_line}`,
+          line_url: `https://github.com/${owner}/${repo}/blob/${headSha}/${f.file}${anchor}`,
         }),
       );
       lines.push("");
@@ -225,12 +240,30 @@ export function renderSeance(args: SeanceArgs): string {
     lines.push("");
   }
 
-  if (exorcised.length > 0) {
+  if (falseAlarms.length > 0) {
     lines.push(
-      `<details><summary>${fillTemplate(s.sections.false_alarms, { count: String(exorcised.length) })}</summary>`,
+      `<details><summary>${fillTemplate(s.sections.false_alarms, { count: String(falseAlarms.length) })}</summary>`,
     );
     lines.push("");
-    for (const e of exorcised) {
+    for (const e of falseAlarms) {
+      lines.push(
+        fillTemplate(s.false_alarm_item, {
+          title: escapeHtml(e.title),
+          reason: escapeHtml(e.reason),
+        }),
+      );
+    }
+    lines.push("");
+    lines.push("</details>");
+    lines.push("");
+  }
+
+  if (trimmed.length > 0) {
+    lines.push(
+      `<details><summary>${fillTemplate(s.sections.trimmed, { count: String(trimmed.length) })}</summary>`,
+    );
+    lines.push("");
+    for (const e of trimmed) {
       lines.push(
         fillTemplate(s.false_alarm_item, {
           title: escapeHtml(e.title),

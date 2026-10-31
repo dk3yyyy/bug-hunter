@@ -84,6 +84,25 @@ export function repairJson<T>(
   return { ok: true, value: result.data };
 }
 
+/**
+ * Pull a short schema-validation message out of a failed generateObject error
+ * (the AI SDK puts the Zod error on `cause`). Never includes model output text,
+ * headers or keys; capped at 1,000 chars. Returns "" for non-validation errors.
+ */
+export function validationHint(err: unknown): string {
+  if (!err || typeof err !== "object") return "";
+  const cause = (err as { cause?: unknown }).cause;
+  const pick = (e: unknown): string => {
+    const m = (e as { message?: unknown } | null)?.message;
+    return typeof m === "string" ? m : "";
+  };
+  const causeMsg = pick(cause);
+  const ownMsg = pick(err);
+  const msg = causeMsg || (/schema|valid|parse|json|type/i.test(ownMsg) ? ownMsg : "");
+  if (!msg || isRetryable(err)) return "";
+  return msg.slice(0, 1000);
+}
+
 /** Tiny local sleep; avoids importing a timers module in library code. */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,6 +126,7 @@ export async function generateStructured<T>(opts: {
 }): Promise<T> {
   const { model, schema, system, prompt, label } = opts;
   const maxAttempts = 3;
+  let lastError: unknown = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -120,6 +140,7 @@ export async function generateStructured<T>(opts: {
       });
       return result.object;
     } catch (err) {
+      lastError = err;
       if (isRetryable(err) && attempt < maxAttempts - 1) {
         await sleep(backoffMs(attempt));
         continue;
@@ -129,12 +150,16 @@ export async function generateStructured<T>(opts: {
     }
   }
 
-  // One-shot repair: ask for raw JSON, then parse + validate ourselves.
+  // One-shot repair (SPEC §10): ask for raw JSON again, including the validation
+  // error from the failed attempt, then parse + validate ourselves.
   try {
+    const hint = validationHint(lastError);
     const { text } = await generateText({
       model,
       system,
-      prompt: `${prompt}\n\nReturn ONLY valid JSON matching the schema. No markdown, no prose.`,
+      prompt:
+        `${prompt}\n\nReturn ONLY valid JSON matching the schema. No markdown, no prose.` +
+        (hint ? `\n\nYour previous answer failed validation with this error; fix it:\n${hint}` : ""),
       temperature: 0,
     });
     const repaired = repairJson(schema, text);

@@ -64,3 +64,9 @@ export function pendingStatus(): { context: string; state: "pending"; descriptio
   const v = loadVoice();
   return { context: v.status.context, state: "pending", description: v.status.pending };
 }
+
+/** Error status text from voice: a failed hunt must never leave the PR stuck on "pending". */
+export function errorStatus(): { context: string; state: "error"; description: string } {
+  const v = loadVoice();
+  return { context: v.status.context, state: "error", description: v.status.error.slice(0, 140) };
+}

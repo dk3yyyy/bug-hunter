@@ -159,6 +159,11 @@ export interface ExorcisedFinding {
   title: string;
   severity: SeverityT;
   reason: string;
+  /**
+   * "verifier" (default when omitted) = dropped by the skeptical verifier → shown as an
+   * Exorcised false alarm. "trimmed" = dropped by code (cap, >3 per file, file not in diff).
+   */
+  source?: "verifier" | "trimmed";
 }
 
 // ---------------------------------------------------------------------------

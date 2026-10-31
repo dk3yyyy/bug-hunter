@@ -11,7 +11,7 @@ import type {
 import { resolvePosition } from "../diff/commentable";
 import { filterFiles } from "./filters";
 import { candidatesJson, withIds } from "./review";
-import { sanitizeText, scanVisible, stripInvisible } from "./sanitize";
+import { sanitizeText } from "./sanitize";
 import { emptySeance } from "./summary";
 import { applyVerdict } from "./verify";
 
@@ -63,7 +63,12 @@ export interface HuntInput {
 export interface HuntResult {
   possessionAttempt: boolean;
   hiddenContent: string[];
+  /** Anchored findings: posted in "Spirits found", inline, and counted in the haunting level. */
   kept: KeptFinding[];
+  /** Real findings that could not be anchored to a changed line (SPEC §9.3). Report-only, not counted. */
+  lurking: KeptFinding[];
+  /** True when the verifier call failed and candidates were kept unverified (no suggestions). */
+  verifierFailed: boolean;
   exorcised: ExorcisedFinding[];
   skipped: { path: string; reason: string }[];
   summary: SeanceOutputT;
@@ -103,16 +108,19 @@ export function computeHaunting(
   return { level: "clear", title: "All clear: no spirits detected" };
 }
 
+/** Max findings shown in "Lurking outside the diff". */
+const MAX_LURKING = 5;
+
 export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntResult> {
-  // 1. Sanitize the PR body and title; flag possession attempts. Titles ride
-  // raw into prompts, so strip invisible chars and scan visible instructions.
-  const {
-    clean: cleanBody,
-    hidden: hiddenContent,
-    possession: bodyPossession,
-  } = sanitizeText(input.prBody);
-  const cleanTitle = stripInvisible(input.prTitle);
-  const possessionAttempt = bodyPossession || scanVisible(cleanTitle);
+  // 1. Sanitize the PR title AND body; flag possession attempts in either.
+  // Titles ride raw into prompts, so comments are stripped and invisible
+  // characters removed before templating.
+  const titleScan = sanitizeText(input.prTitle);
+  const bodyScan = sanitizeText(input.prBody);
+  const cleanTitle = titleScan.clean.trim();
+  const cleanBody = bodyScan.clean;
+  const hiddenContent = [...titleScan.hidden, ...bodyScan.hidden];
+  const possessionAttempt = titleScan.possession || bodyScan.possession;
 
   // 2. Filter the changed files.
   const { kept: keptFiles, skipped } = filterFiles(input.files);
@@ -138,8 +146,11 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
 
   let kept: KeptFinding[] = [];
   let exorcised: ExorcisedFinding[] = [];
+  let verifierFailed = false;
 
-  // 5. Verify pass.
+  // 5. Verify pass. A failed verifier must not kill the hunt: keep the candidates
+  //    at the reviewer's own confidence, but with no one-click suggestions, and the
+  //    report shows an "unverified" banner (result.verifierFailed).
   if (candidates.length > 0) {
     const verifyPrompt = renderTemplate(input.prompts.verify, {
       repo_rules: input.repoRules,
@@ -147,7 +158,15 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
       annotated_diff: input.annotatedDiff,
       context: input.context,
     });
-    const verdict: VerdictT = await deps.verify({ system: "", user: verifyPrompt });
+    let verdict: VerdictT;
+    try {
+      verdict = await deps.verify({ system: "", user: verifyPrompt });
+    } catch {
+      verifierFailed = true;
+      verdict = { results: [] };
+    }
+    // applyVerdict keeps candidates with no verdict at their original confidence
+    // and fix_ok = false, which is exactly the unverified fallback.
     ({ kept, exorcised } = applyVerdict(candidates, verdict));
   }
 
@@ -156,7 +175,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   const anchored: KeptFinding[] = [];
   for (const k of kept) {
     if (!keptFilenames.has(k.file)) {
-      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "file not in diff" });
+      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "file not in diff", source: "trimmed" });
       continue;
     }
     const position = resolvePosition(keptFiles, {
@@ -174,13 +193,14 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   const passing: KeptFinding[] = [];
   for (const k of kept) {
     if (k.adjusted_severity === "nitpick") {
-      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "downgraded to nitpick" });
+      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "downgraded to nitpick", source: "trimmed" });
     } else if (k.adjusted_confidence < input.confidenceThreshold) {
       exorcised.push({
         id: k.id,
         title: k.title,
         severity: k.severity,
         reason: `below confidence threshold (${k.adjusted_confidence.toFixed(2)} < ${input.confidenceThreshold})`,
+        source: "trimmed",
       });
     } else {
       passing.push(k);
@@ -193,12 +213,23 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     return b.adjusted_confidence - a.adjusted_confidence;
   });
 
+  // Unanchored findings go to "Lurking outside the diff" only (SPEC §9.3):
+  // not in "Spirits found", not inline, not counted in the haunting level.
+  const lurking = sorted.filter((k) => !k.position).slice(0, MAX_LURKING);
+
   const perFile = new Map<string, number>();
   const finalKept: KeptFinding[] = [];
   for (const k of sorted) {
+    if (!k.position) continue;
     const count = perFile.get(k.file) ?? 0;
     if (finalKept.length >= maxFindings || count >= 3) {
-      exorcised.push({ id: k.id, title: k.title, severity: k.severity, reason: "over cap / >3 per file" });
+      exorcised.push({
+        id: k.id,
+        title: k.title,
+        severity: k.severity,
+        reason: "over cap / >3 per file",
+        source: "trimmed",
+      });
       continue;
     }
     finalKept.push(k);
@@ -206,7 +237,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
   }
   kept = finalKept;
 
-  // 8. Counts + haunting level.
+  // 8. Counts + haunting level (anchored findings only).
   const counts: HuntCounts = { critical: 0, high: 0, medium: 0, low: 0, nitpick: 0 };
   for (const k of kept) {
     counts[k.adjusted_severity] += 1;
@@ -239,6 +270,8 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     possessionAttempt,
     hiddenContent,
     kept,
+    lurking,
+    verifierFailed,
     exorcised,
     skipped,
     summary,
