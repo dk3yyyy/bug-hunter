@@ -9,6 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
+    "check:models": "tsx scripts/check-models.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

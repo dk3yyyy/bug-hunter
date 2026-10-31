@@ -32,9 +32,11 @@ Fill in `.env`:
 - **LLM provider** (default Google Gemini — one Google technology doing real work):
   - `GOOGLE_GENERATIVE_AI_API_KEY` — a Gemini API key from
     [Google AI Studio](https://aistudio.google.com/).
-  - Or bring your own model: set `LLM_PROVIDER` to `openai` | `anthropic` | `openrouter` |
-    `ollama` | `openai-compatible`, plus `LLM_API_KEY` and `LLM_MODEL_REVIEW` /
-    `LLM_MODEL_FAST` (and `LLM_BASE_URL` for `openai-compatible`).
+  - Or bring your own model: set `LLM_PROVIDER` to `openai` | `anthropic` (Claude) |
+    `opencode` (OpenCode Go) | `openrouter` | `ollama` | `openai-compatible`, plus
+    `LLM_API_KEY` and `LLM_MODEL_REVIEW` / `LLM_MODEL_FAST` (and `LLM_BASE_URL` for
+    `openai-compatible`).
+  - To see valid model ids for your provider, run `npm run check:models`.
 - `GITHUB_WEBHOOK_SECRET` — any random string; it must match the secret you set on the
   GitHub webhook.
 - `GITHUB_TOKEN` — a fine-grained personal access token scoped to your demo repo

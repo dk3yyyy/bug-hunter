@@ -20,6 +20,8 @@ export function getModel(role: "review" | "verify" | "fast"): LanguageModel {
       return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl || undefined })(cfg.model);
     case "openrouter":
       return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(cfg.model);
+    case "opencode":
+      return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(cfg.model);
     case "ollama":
       return createOpenAI({ apiKey: cfg.apiKey || "ollama", baseURL: cfg.baseUrl })(cfg.model);
     case "openai-compatible":

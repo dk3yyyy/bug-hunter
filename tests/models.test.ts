@@ -41,6 +41,12 @@ describe("resolveModelConfig", () => {
     );
   });
 
+  it("uses OpenCode Go's default base URL", () => {
+    expect(
+      resolveModelConfig({ ...base, LLM_PROVIDER: "opencode", LLM_BASE_URL: "" }, "review").baseUrl,
+    ).toBe("https://opencode.ai/inference/openai/v1");
+  });
+
   it("uses localhost for ollama", () => {
     expect(resolveModelConfig({ ...base, LLM_PROVIDER: "ollama" }, "review").baseUrl).toBe(
       "http://localhost:11434/v1",

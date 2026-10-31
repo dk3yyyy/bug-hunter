@@ -30,7 +30,7 @@ const schema = z.object({
   // Multi-provider (BYO model). google (default) uses the Gemini key above;
   // everything else uses LLM_API_KEY (+ LLM_BASE_URL for openai-compatible).
   LLM_PROVIDER: z
-    .enum(["google", "openai", "anthropic", "openrouter", "ollama", "openai-compatible"])
+    .enum(["google", "openai", "anthropic", "opencode", "openrouter", "ollama", "openai-compatible"])
     .default("google"),
   LLM_API_KEY: z.string().default(""),
   LLM_BASE_URL: z.string().default(""),

@@ -3,6 +3,7 @@ export type LlmProvider =
   | "google"
   | "openai"
   | "anthropic"
+  | "opencode"
   | "openrouter"
   | "ollama"
   | "openai-compatible";
@@ -46,6 +47,14 @@ export function resolveModelConfig(
       model,
       apiKey: e.LLM_API_KEY,
       baseUrl: "https://openrouter.ai/api/v1",
+    };
+  }
+  if (e.LLM_PROVIDER === "opencode") {
+    return {
+      provider: "opencode",
+      model,
+      apiKey: e.LLM_API_KEY,
+      baseUrl: e.LLM_BASE_URL || "https://opencode.ai/inference/openai/v1",
     };
   }
   if (e.LLM_PROVIDER === "ollama") {
