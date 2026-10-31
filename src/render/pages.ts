@@ -5,10 +5,12 @@ import type { HuntRecord } from "../types";
 
 const landingFile = new URL("./landing.html", import.meta.url);
 
-/** The hand-designed landing page, with the "View the repo" links substituted. */
-export function renderLanding(repoUrl: string): string {
+/** The hand-designed landing page, with the connect/repo links substituted. */
+export function renderLanding(opts: { connectUrl: string; repoUrl: string }): string {
   const html = readFileSync(landingFile, "utf8");
-  return repoUrl ? html.replace(/href="#"/g, `href="${repoUrl}"`) : html;
+  return html
+    .replace(/href="#connect"/g, `href="${opts.connectUrl}"`)
+    .replace(/href="#repo"/g, `href="${opts.repoUrl}"`);
 }
 
 const SHELL_CSS = `
@@ -25,6 +27,7 @@ table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px 12px;vertical-align:top}
 th{color:var(--muted);font-weight:700}
 code,.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:13px}
+pre{background:var(--panel);color:var(--panel-ink);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:13px;line-height:1.5}
 .badge{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
 .b-possessed{background:var(--crit);color:#150D24}
 .b-haunted{background:#5b1a2e;color:#ffb3c1}
@@ -109,6 +112,41 @@ export function renderSummoned(): string {
     `<h1>Bug Hunter 🕯️</h1>
 <p>The hunter has been summoned. Open a pull request and watch the hunt begin.</p>
 <p><a href="/dashboard">View recent hunts</a></p>`,
+  );
+}
+
+/** Connect page: how to point Bug Hunter at a repo (SPEC §6, §7). */
+export function renderConnect(publicUrl: string, botHandle: string): string {
+  const autoConnect = publicUrl
+    ? `<h2>Auto-connect</h2>
+<p>If <code>PUBLIC_URL</code> is set, Bug Hunter can register the webhook for you:</p>
+<pre>curl -X POST ${publicUrl}/api/connect \\
+  -H "X-BugHunter-Secret: &lt;your shared secret&gt;" \\
+  -H "content-type: application/json" \\
+  -d '{"repo":"owner/name"}'</pre>`
+    : `<p class="muted">Auto-connect is off — set <code>PUBLIC_URL</code> to enable one-command webhook registration.</p>`;
+
+  return shell(
+    "Bug Hunter — Connect a repo",
+    `<h1>Bug Hunter 🎃 — Connect a repo</h1>
+<p>Bug Hunter reviews pull requests when GitHub notifies it. Connect in any of three ways:</p>
+
+<h2>1. Webhook (live PRs)</h2>
+<p>Add a webhook on your repo pointing at <code>/webhooks/github</code> (secret = <code>GITHUB_WEBHOOK_SECRET</code>, events: <b>Pull requests</b> + <b>Issue comments</b>). On localhost, forward with smee or ngrok.</p>
+
+${autoConnect}
+
+<h2>2. Manual trigger (no webhook needed)</h2>
+<p>Hunt any open PR immediately:</p>
+<pre>curl -X POST &lt;server&gt;/api/hunt \\
+  -H "X-BugHunter-Secret: &lt;your shared secret&gt;" \\
+  -H "content-type: application/json" \\
+  -d '{"pr_url":"https://github.com/owner/name/pull/N"}'</pre>
+
+<h2>3. Commands on a PR</h2>
+<p>Comment <code>@${botHandle} hunt</code> on a pull request to summon a hunt in-thread.</p>
+
+<p><a href="/dashboard">View recent hunts →</a></p>`,
   );
 }
 
