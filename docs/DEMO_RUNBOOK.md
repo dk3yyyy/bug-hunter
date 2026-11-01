@@ -284,9 +284,6 @@ The hunt fails with a model error when `GEMINI_MODEL_REVIEW` (or
    ```
 3. Restart `npm run dev` and re-trigger.
 
-(Note: `check:models` prints "Set `LLM_MODEL_REVIEW`…", but for the default
-`google` provider the vars are `GEMINI_MODEL_REVIEW` / `GEMINI_MODEL_FAST`.)
-
 ### 9.2 `401` / `{"error":"unauthorized"}` on `/api/hunt`
 
 The `/api/hunt` and `/api/connect` endpoints require the shared-secret header.
