@@ -9,8 +9,6 @@ Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
 
-[screenshot coming soon]
-
 ## What it does
 
 When a pull request opens, Bug Hunter:

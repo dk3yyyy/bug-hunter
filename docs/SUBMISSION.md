@@ -31,7 +31,7 @@ sheet tab.
 
 ## 6. GitHub repo + n8n export
 
-Repo: [repo URL] · workflow JSON exported to `/n8n/`.
+Repo: https://github.com/dk3yyyy/bug-hunter · workflow JSON exported to `/n8n/`.
 
 ## 7. Demo video or live demo link
 
