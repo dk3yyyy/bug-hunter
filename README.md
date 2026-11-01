@@ -9,6 +9,8 @@ Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
 
+![Bug Hunter landing page](docs/landing.png)
+
 ## What it does
 
 When a pull request opens, Bug Hunter:
