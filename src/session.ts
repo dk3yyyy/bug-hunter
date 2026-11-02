@@ -16,6 +16,13 @@ export type Session = {
   name?: string;
   /** Avatar URL from GET /user, when present. */
   avatar?: string;
+  /**
+   * When the access token stops working (epoch ms). Absent = GitHub did not say,
+   * i.e. a non-expiring token from an OAuth App with short-lived tokens disabled.
+   */
+  expiresAt?: number;
+  /** Refresh token, present when the app issues expiring access tokens. */
+  refreshToken?: string;
   /** Expiry, epoch milliseconds. */
   exp: number;
 };
@@ -70,6 +77,12 @@ export function openSession(raw: string, secret: string, now = Date.now()): Sess
       exp: s.exp,
       ...(typeof s.name === "string" ? { name: s.name } : {}),
       ...(typeof s.avatar === "string" ? { avatar: s.avatar } : {}),
+      ...(typeof s.expiresAt === "number" && Number.isFinite(s.expiresAt)
+        ? { expiresAt: s.expiresAt }
+        : {}),
+      ...(typeof s.refreshToken === "string" && s.refreshToken
+        ? { refreshToken: s.refreshToken }
+        : {}),
     };
   } catch {
     return null;

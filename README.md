@@ -172,11 +172,22 @@ small OAuth App replaces it with a button:
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
    - **Homepage URL**: your instance, e.g. `https://bug-hunter-ty2y.onrender.com`
-   - **Authorization callback URL**: `<same>/auth/github/callback`
+   - **Redirect URI** (older GitHub UIs call this the *Authorization callback URL*):
+     `<same>/auth/github/callback`
+
+   GitHub now allows up to 10 redirect URIs per app, and enables **wildcard
+   matching** on apps that have only one — the redirect matches any path off that
+   URI. If you do not need that, untick *Allow wildcard matching*.
 2. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` on the host, plus
    `SESSION_SECRET` (any random 32+ chars; it seals the session cookie).
 3. Reload `/connect`: the secret field collapses into an *Advanced* disclosure and a
    **Connect with GitHub** button takes its place.
+
+OAuth Apps created since August 2026 issue **8-hour access tokens** by default
+(plus a 6-month refresh token). Bug Hunter stores both and silently refreshes the
+access token before it expires, so the 30-day session keeps working. If you would
+rather not use refresh tokens, untick *Expire user authorization tokens* in the
+OAuth App's settings — sessions then rely on a non-expiring token.
 
 With an OAuth App configured, connecting a repo uses **the signed-in user's token**,
 so GitHub itself enforces who may manage that repo's webhooks — login never grants
@@ -193,7 +204,8 @@ configured, nothing changes: the login button is hidden and the form works as be
 | `401 unauthorized` | Log in with GitHub, or send the `X-BugHunter-Secret` header equal to the server's `N8N_SHARED_SECRET` (Render generates it — see the service's Environment tab). |
 | `400 PUBLIC_URL not set` | No `PUBLIC_URL` and no URL in the form — paste your tunnel/deployment URL. |
 | Login bounces back with "did not match this browser" | The OAuth state cookie expired (>10 min) or cookies are blocked. Try again in one tab. |
-| Login bounces back with "rejected the login exchange" | Client ID/secret are wrong, or the callback URL on the OAuth App doesn't match `<PUBLIC_URL>/auth/github/callback`. |
+| Login bounces back with "rejected the login exchange" | Client ID/secret are wrong, or the redirect URI on the OAuth App doesn't match `<PUBLIC_URL>/auth/github/callback`. |
+| Signed in, but connecting fails with 401 | The access token expired and no refresh token was stored. Check the app's *Expire user authorization tokens* setting, then sign out and back in. |
 | `GitHub can't reach localhost…` | A webhook needs a public URL. Use ngrok/smee/cloudflared or deploy. |
 | `403 The token can't manage webhooks` | Fine-grained token needs **Webhooks: Read & write**; classic needs `admin:repo_hook` (or `repo`). |
 | `404 Repo not found…` | Wrong `owner/name`, or the token isn't scoped to that repo. |

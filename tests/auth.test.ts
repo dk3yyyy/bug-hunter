@@ -2,7 +2,7 @@
 // HTTP 200, and a wrong client secret yields an empty body rather than an error),
 // so these pin the parse and the failure messages.
 import { describe, expect, it, vi } from "vitest";
-import { buildAuthorizeUrl, exchangeCode, fetchUser, OAUTH_SCOPES } from "../src/auth";
+import { buildAuthorizeUrl, exchangeCode, fetchUser, refreshAccessToken, OAUTH_SCOPES } from "../src/auth";
 
 const cfg = {
   clientId: "Iv1.abc123",
@@ -134,5 +134,65 @@ describe("fetchUser", () => {
       throw new Error("socket hang up");
     });
     expect(await fetchUser("gho_abc", f as unknown as typeof fetch)).toBeNull();
+  });
+});
+
+describe("expiring tokens (default for OAuth Apps created since Aug 2026)", () => {
+  it("captures expires_in and refresh_token from the login exchange", async () => {
+    const f = vi.fn(async () =>
+      jsonResponse({
+        access_token: "gho_short",
+        scope: "repo",
+        token_type: "bearer",
+        expires_in: 28800,
+        refresh_token: "ghr_refresh",
+      }),
+    );
+    const r = await exchangeCode(cfg, "code", f as unknown as typeof fetch);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.expiresIn).toBe(28800);
+      expect(r.refreshToken).toBe("ghr_refresh");
+    }
+  });
+
+  it("omits expiry fields for a non-expiring token", async () => {
+    const f = vi.fn(async () => jsonResponse({ access_token: "gho_long", scope: "repo" }));
+    const r = await exchangeCode(cfg, "code", f as unknown as typeof fetch);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.expiresIn).toBeUndefined();
+      expect(r.refreshToken).toBeUndefined();
+    }
+  });
+
+  it("refreshes with grant_type=refresh_token", async () => {
+    const f = vi.fn(async () =>
+      jsonResponse({ access_token: "gho_new", expires_in: 28800, refresh_token: "ghr_rotated" }),
+    );
+    const r = await refreshAccessToken(cfg, "ghr_old", f as unknown as typeof fetch);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.accessToken).toBe("gho_new");
+      expect(r.refreshToken).toBe("ghr_rotated");
+    }
+
+    const [, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, string>;
+    expect(body.grant_type).toBe("refresh_token");
+    expect(body.refresh_token).toBe("ghr_old");
+    expect(body.client_id).toBe(cfg.clientId);
+  });
+
+  it("reports a revoked refresh token without leaking it", async () => {
+    const f = vi.fn(async () =>
+      jsonResponse({ error: "invalid_grant", error_description: "The refresh token is invalid." }),
+    );
+    const r = await refreshAccessToken(cfg, "ghr_revoked_secret", f as unknown as typeof fetch);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toMatch(/refresh/i);
+      expect(r.reason).not.toContain("ghr_revoked_secret");
+    }
   });
 });
