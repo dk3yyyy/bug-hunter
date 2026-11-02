@@ -1,11 +1,15 @@
 // Bug Hunter server — Hono app, webhook ingress, manual trigger, in-process queue.
 // (SPEC §4, §8, §11, §16.4)
 import { serve } from "@hono/node-server";
-import { createHash, timingSafeEqual } from "node:crypto";
-import { Hono } from "hono";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { Hono, type Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { Octokit } from "@octokit/rest";
 import { Webhooks } from "@octokit/webhooks";
 import PQueue from "p-queue";
 import { env } from "./env";
+import { buildAuthorizeUrl, exchangeCode, fetchUser, OAUTH_SCOPES } from "./auth";
+import { openSession, sealSession, SESSION_TTL_MS, type Session } from "./session";
 import { getOctokit } from "./github/client";
 import { installUrl, addRepo, removeRepo, listRepos, connectUrlFor, installationIdForRepo } from "./github/app";
 import { webhookUrlFor } from "./connect";
@@ -88,6 +92,78 @@ function authSecret(c: { req: { header: (n: string) => string | undefined } }): 
   const b = createHash("sha256").update(env.N8N_SHARED_SECRET).digest();
   return timingSafeEqual(a, b);
 }
+
+// ---------------------------------------------------------------------------
+// "Connect with GitHub" — OAuth login (replaces pasting the shared secret).
+//
+// The shared secret stays supported for scripts, n8n and the existing tests; the
+// browser flow now prefers a session cookie. Everything is opt-in: with no OAuth
+// App configured the login button is hidden and nothing changes.
+// ---------------------------------------------------------------------------
+
+const SESSION_COOKIE = "bh_session";
+const STATE_COOKIE = "bh_oauth_state";
+
+/** True when an OAuth App is configured well enough to offer a login button. */
+export function oauthEnabled(): boolean {
+  return Boolean(env.GITHUB_OAUTH_CLIENT_ID.trim() && env.GITHUB_OAUTH_CLIENT_SECRET.trim());
+}
+
+/** Key for sealing sessions; falls back so a deployment without SESSION_SECRET still works. */
+function sessionKey(): string {
+  return env.SESSION_SECRET.trim() || `bh-session:${env.N8N_SHARED_SECRET}`;
+}
+
+/** The callback URL registered on the OAuth App. Explicit setting wins. */
+function redirectUriFor(): string {
+  const explicit = env.GITHUB_OAUTH_REDIRECT_URI.trim();
+  if (explicit) return explicit;
+  const base = (env.PUBLIC_URL.trim() || env.APP_URL.trim()).replace(/\/+$/, "");
+  return base ? `${base}/auth/github/callback` : "";
+}
+
+function cookieOptions(): { httpOnly: true; path: string; sameSite: "Lax"; secure: boolean } {
+  // Secure is required for the cookie to come back over HTTPS, but would break
+  // local http://localhost dev, so it follows the configured public scheme.
+  return { httpOnly: true, path: "/", sameSite: "Lax", secure: redirectUriFor().startsWith("https://") };
+}
+
+/** The signed-in user, or null. Treats every malformed cookie as logged out. */
+export function currentSession(c: Context): Session | null {
+  const raw = getCookie(c, SESSION_COOKIE);
+  if (!raw) return null;
+  return openSession(raw, sessionKey());
+}
+
+/** The allowlist, lowercased. Empty = no restriction beyond GitHub's own checks. */
+function allowedLogins(): Set<string> {
+  return new Set(
+    env.ALLOWED_GITHUB_LOGINS.split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * Who may call /api/*. A logged-in session OR the legacy shared secret — so the
+ * existing header-based callers (n8n, scripts, tests) keep working.
+ */
+export function isAuthorized(c: Context): boolean {
+  return currentSession(c) !== null || authSecret(c);
+}
+
+/** Human-readable outcome of the login redirect, keyed by the ?login= value. */
+const LOGIN_NOTICES: Record<string, string> = {
+  ok: "Signed in with GitHub.",
+  out: "Signed out.",
+  cancelled: "GitHub login was cancelled.",
+  state: "That login link expired or did not match this browser. Please try again.",
+  code: "GitHub did not return a login code. Please try again.",
+  exchange: "GitHub rejected the login exchange — check the OAuth App's client ID and secret.",
+  user: "Signed in, but your GitHub profile could not be read. Please try again.",
+  denied: "That GitHub account is not allowed to sign in to this instance.",
+  disabled: "GitHub login is not configured on this server.",
+};
 
 function githubStatus(e: unknown): number | undefined {
   const status = (e as { status?: unknown } | null)?.status;
@@ -500,16 +576,114 @@ const connectUrl = connectUrlFor({
   appUrl: env.APP_URL,
 });
 app.get("/", (c) => c.html(renderLanding({ connectUrl, repoUrl })));
-app.get("/connect", (c) =>
-  c.html(
+
+// --- "Connect with GitHub" login flow ---------------------------------------
+// Step 1: bounce to GitHub with a CSRF state stored in a short-lived cookie.
+app.get("/auth/github", (c) => {
+  if (!oauthEnabled()) {
+    return c.text(
+      "GitHub login is not configured on this server. Set GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET.",
+      503,
+    );
+  }
+  const redirectUri = redirectUriFor();
+  if (!redirectUri.startsWith("http")) {
+    return c.text(
+      "GitHub login needs a public URL. Set PUBLIC_URL (or GITHUB_OAUTH_REDIRECT_URI) so the callback can be built.",
+      503,
+    );
+  }
+  const state = randomBytes(16).toString("hex");
+  setCookie(c, STATE_COOKIE, state, { ...cookieOptions(), maxAge: 600 });
+  return c.redirect(
+    buildAuthorizeUrl({ clientId: env.GITHUB_OAUTH_CLIENT_ID.trim(), redirectUri, state }),
+  );
+});
+
+// Step 2: validate state, swap the code for a token, seal a session cookie.
+app.get("/auth/github/callback", async (c) => {
+  if (!oauthEnabled()) return c.redirect("/connect?login=disabled");
+
+  const expected = getCookie(c, STATE_COOKIE) ?? "";
+  const given = c.req.query("state") ?? "";
+  deleteCookie(c, STATE_COOKIE, { path: "/" });
+  if (!expected || !given || expected !== given) return c.redirect("/connect?login=state");
+
+  if (c.req.query("error")) return c.redirect("/connect?login=cancelled");
+  const code = c.req.query("code") ?? "";
+  if (!code) return c.redirect("/connect?login=code");
+
+  const result = await exchangeCode(
+    {
+      clientId: env.GITHUB_OAUTH_CLIENT_ID.trim(),
+      clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET.trim(),
+      redirectUri: redirectUriFor(),
+    },
+    code,
+  );
+  if (!result.ok) {
+    console.error("github login failed:", result.reason);
+    return c.redirect("/connect?login=exchange");
+  }
+
+  const user = await fetchUser(result.accessToken);
+  if (!user) return c.redirect("/connect?login=user");
+
+  const allow = allowedLogins();
+  if (allow.size > 0 && !allow.has(user.login.toLowerCase())) {
+    return c.redirect("/connect?login=denied");
+  }
+
+  setCookie(
+    c,
+    SESSION_COOKIE,
+    sealSession(
+      {
+        login: user.login.toLowerCase(),
+        token: result.accessToken,
+        exp: Date.now() + SESSION_TTL_MS,
+        ...(user.name ? { name: user.name } : {}),
+        ...(user.avatar ? { avatar: user.avatar } : {}),
+      },
+      sessionKey(),
+    ),
+    { ...cookieOptions(), maxAge: Math.floor(SESSION_TTL_MS / 1000) },
+  );
+  return c.redirect("/connect?login=ok");
+});
+
+app.get("/logout", (c) => {
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.redirect("/connect?login=out");
+});
+
+/** Small JSON probe so the page script can tell whether it has a session. */
+app.get("/api/me", (c) => {
+  const session = currentSession(c);
+  if (!session) return c.json({ logged_in: false, oauth: oauthEnabled() }, 401);
+  return c.json({
+    logged_in: true,
+    login: session.login,
+    ...(session.name ? { name: session.name } : {}),
+    ...(session.avatar ? { avatar: session.avatar } : {}),
+    scopes: [...OAUTH_SCOPES].join(" "),
+  });
+});
+
+app.get("/connect", (c) => {
+  const session = currentSession(c);
+  return c.html(
     renderConnect({
       publicUrl: env.PUBLIC_URL,
       botHandle: env.BOT_HANDLE,
       mode: env.GITHUB_MODE,
       installUrl: env.GITHUB_MODE === "app" ? installUrl(env.GITHUB_APP_SLUG) : undefined,
+      oauthEnabled: oauthEnabled(),
+      session: session ? { login: session.login, name: session.name, avatar: session.avatar } : null,
+      loginNotice: LOGIN_NOTICES[c.req.query("login") ?? ""] ?? "",
     }),
-  ),
-);
+  );
+});
 
 // One-click install redirect (Step 4): app mode → GitHub install page, pat → /connect.
 app.get("/summon", (c) => {
@@ -535,7 +709,7 @@ app.post("/webhooks/github", async (c) => {
 // Manual trigger (SPEC §16.4 Workflow 3 + instant testing): POST /api/hunt
 //   { "pr_url": "https://github.com/o/r/pull/N" } or { "owner", "repo", "pr" }
 app.post("/api/hunt", async (c) => {
-  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== "object") return c.json({ error: "bad body" }, 400);
 
@@ -590,7 +764,24 @@ app.post("/api/hunt", async (c) => {
 
 // Auto-connect (Option B): create a webhook on a repo using the PAT.
 app.post("/api/connect", async (c) => {
-  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!isAuthorized(c)) {
+    // Tell the page how to fix it: sign in, rather than "unauthorized" and a shrug.
+    return c.json(
+      {
+        error: oauthEnabled()
+          ? "Sign in with GitHub first, then connect the repo."
+          : "unauthorized — send the X-BugHunter-Secret header",
+        login_url: oauthEnabled() ? "/auth/github" : null,
+      },
+      401,
+    );
+  }
+
+  // Prefer the signed-in user's token: GitHub itself then decides whether they may
+  // manage hooks on this repo, so being logged in never becomes a privilege
+  // escalation over whatever the server-wide PAT happens to reach. Secret-based
+  // callers (scripts, n8n) keep using the server PAT as before.
+  const session = currentSession(c);
 
   // App mode connects repos by installation. GitHub Apps cannot create repo
   // webhooks with an installation token, so send people to the install page.
@@ -629,7 +820,7 @@ app.post("/api/connect", async (c) => {
   const webhookUrl = target.url;
   try {
     const hook = await api.ensureRepoWebhook(
-      await getOctokit(),
+      session ? new Octokit({ auth: session.token }) : await getOctokit(),
       owner,
       repo,
       webhookUrl,
@@ -652,11 +843,11 @@ app.post("/api/connect", async (c) => {
 });
 
 app.get("/api/hunts", (c) => {
-  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
   return c.json([...hunts.values()].slice(-50).reverse());
 });
 app.get("/api/hunts/:id", (c) => {
-  if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
   const rec = hunts.get(c.req.param("id"));
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });

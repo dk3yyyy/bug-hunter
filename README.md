@@ -164,11 +164,36 @@ static landing then links straight to `https://github.com/apps/<slug>/installati
 With neither variable set, the button stays on the page and scrolls to the self-host
 section instead of bouncing to the README.
 
+### "Connect with GitHub" login (no shared secret)
+
+Pasting `N8N_SHARED_SECRET` into a web form is a poor first-run experience — the
+secret is server-generated, so on a hosted instance nobody knows it. Registering a
+small OAuth App replaces it with a button:
+
+1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
+   - **Homepage URL**: your instance, e.g. `https://bug-hunter-ty2y.onrender.com`
+   - **Authorization callback URL**: `<same>/auth/github/callback`
+2. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` on the host, plus
+   `SESSION_SECRET` (any random 32+ chars; it seals the session cookie).
+3. Reload `/connect`: the secret field collapses into an *Advanced* disclosure and a
+   **Connect with GitHub** button takes its place.
+
+With an OAuth App configured, connecting a repo uses **the signed-in user's token**,
+so GitHub itself enforces who may manage that repo's webhooks — login never grants
+more reach than the user already has. Set `ALLOWED_GITHUB_LOGINS=you,teammate` to
+restrict who may sign in at all.
+
+The shared secret keeps working for scripts and n8n regardless. If OAuth is not
+configured, nothing changes: the login button is hidden and the form works as before.
+
 ### Connect troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
+| `401 unauthorized` | Log in with GitHub, or send the `X-BugHunter-Secret` header equal to the server's `N8N_SHARED_SECRET` (Render generates it — see the service's Environment tab). |
 | `400 PUBLIC_URL not set` | No `PUBLIC_URL` and no URL in the form — paste your tunnel/deployment URL. |
+| Login bounces back with "did not match this browser" | The OAuth state cookie expired (>10 min) or cookies are blocked. Try again in one tab. |
+| Login bounces back with "rejected the login exchange" | Client ID/secret are wrong, or the callback URL on the OAuth App doesn't match `<PUBLIC_URL>/auth/github/callback`. |
 | `GitHub can't reach localhost…` | A webhook needs a public URL. Use ngrok/smee/cloudflared or deploy. |
 | `403 The token can't manage webhooks` | Fine-grained token needs **Webhooks: Read & write**; classic needs `admin:repo_hook` (or `repo`). |
 | `404 Repo not found…` | Wrong `owner/name`, or the token isn't scoped to that repo. |
@@ -180,14 +205,18 @@ section instead of bouncing to the README.
 |---|---|---|---|
 | GET | `/` | none | landing page |
 | GET | `/connect` | none | hunt a PR now / auto-connect a repo |
+| GET | `/auth/github` | none | start the "Connect with GitHub" login |
+| GET | `/auth/github/callback` | OAuth state | finish login, set the session cookie |
+| GET | `/logout` | none | clear the session cookie |
+| GET | `/api/me` | session | who is signed in (JSON) |
 | GET | `/summon` | none | redirect to the GitHub App install page (app mode) or `/connect` |
 | GET | `/dashboard` | none | recent hunts (in-memory) |
 | GET | `/health` | none | liveness |
 | POST | `/webhooks/github` | webhook signature | GitHub PR / issue-comment / installation events |
-| POST | `/api/hunt` | `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
-| POST | `/api/connect` | `X-BugHunter-Secret` | create/reuse a repo webhook: `{ "repo", "public_url"? }` (or `PUBLIC_URL`) |
-| GET | `/api/hunts` | `X-BugHunter-Secret` | recent hunts (JSON) |
-| GET | `/api/hunts/:id` | `X-BugHunter-Secret` | one hunt (JSON) |
+| POST | `/api/hunt` | session or `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
+| POST | `/api/connect` | session or `X-BugHunter-Secret` | create/reuse a repo webhook: `{ "repo", "public_url"? }` (or `PUBLIC_URL`) |
+| GET | `/api/hunts` | session or `X-BugHunter-Secret` | recent hunts (JSON) |
+| GET | `/api/hunts/:id` | session or `X-BugHunter-Secret` | one hunt (JSON) |
 
 ## How it works
 

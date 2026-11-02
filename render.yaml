@@ -45,3 +45,12 @@ services:
         sync: false
       - key: LANDING_REPO_URL
         value: https://github.com/dk3yyyy/bug-hunter
+      # "Connect with GitHub" login. Optional — leave blank to hide the button and
+      # keep using the shared secret. Register an OAuth App with callback
+      # <service-url>/auth/github/callback, then paste its ID and secret here.
+      - key: GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

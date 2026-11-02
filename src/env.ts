@@ -35,6 +35,20 @@ const schema = z.object({
   // links to <APP_URL>/connect (same rule as the GitHub Pages build). Empty =
   // this server's own /connect.
   APP_URL: z.string().default(""),
+  // "Connect with GitHub" OAuth App. Both empty = the login button is hidden and
+  // the shared-secret path keeps working exactly as before, so existing
+  // deployments and the test suite boot unchanged.
+  GITHUB_OAUTH_CLIENT_ID: z.string().default(""),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().default(""),
+  // Optional explicit callback override. Empty = derive from PUBLIC_URL/APP_URL,
+  // which is what a Render deploy wants (one less thing to misconfigure).
+  GITHUB_OAUTH_REDIRECT_URI: z.string().default(""),
+  // Key for sealing the session cookie. Empty = derived from N8N_SHARED_SECRET so
+  // a deployment that only sets that still gets working logins.
+  SESSION_SECRET: z.string().default(""),
+  // Comma-separated GitHub logins allowed to sign in. Empty = anyone GitHub
+  // authenticates, whose own token then limits what they can actually touch.
+  ALLOWED_GITHUB_LOGINS: z.string().default(""),
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(""),
   GEMINI_MODEL_REVIEW: z.string().default("gemini-flash-latest"),
   GEMINI_MODEL_FAST: z.string().default("gemini-flash-latest"),

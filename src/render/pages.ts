@@ -37,6 +37,9 @@ button{background:var(--ember);color:var(--btn-ink);border:0;border-radius:999px
 button:hover{filter:brightness(1.08)}
 button:active{transform:translateY(1px)}
 button:disabled{opacity:.5;cursor:not-allowed}
+a.btn{display:inline-block;background:var(--ember);color:var(--btn-ink);border-radius:999px;padding:11px 22px;font-weight:700;text-decoration:none}
+a.btn:hover{filter:brightness(1.08)}
+summary{cursor:pointer;font-weight:700;color:var(--muted);margin-bottom:10px}
 .result{margin-top:14px;padding:12px;border-radius:8px;background:color-mix(in srgb,var(--ember) 12%,transparent);font-size:14px}
 .hint{color:var(--muted);font-size:13px;line-height:1.45;margin:-6px 0 14px}
 .badge{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
@@ -143,6 +146,12 @@ export function renderConnect(opts: {
   botHandle: string;
   mode: "pat" | "app";
   installUrl?: string;
+  /** Offer the OAuth login button (an OAuth App is configured). */
+  oauthEnabled?: boolean;
+  /** Set when the visitor is signed in. null/undefined = anonymous. */
+  session?: { login: string; name?: string; avatar?: string } | null;
+  /** Human-readable result of a just-completed login redirect. */
+  loginNotice?: string;
 }): string {
   const connectSection =
     opts.mode === "app"
@@ -168,13 +177,49 @@ export function renderConnect(opts: {
 <div class="result" id="connect-result"></div>
 </div>`;
 
+  const notice = opts.loginNotice
+    ? `<div class="result" role="status">${escapeHtml(opts.loginNotice)}</div>`
+    : "";
+
+  // Who you are. A signed-in session replaces the pasted shared secret for every
+  // /api/* call from this page, because the cookie travels automatically.
+  const loginCard = opts.session
+    ? `<div class="card">
+<p><b>Signed in as @${escapeHtml(opts.session.login)}</b>${
+        opts.session.name ? ` <span class="hint">(${escapeHtml(opts.session.name)})</span>` : ""
+      }</p>
+<p class="hint">Connecting a repo uses your own GitHub permissions, so Bug Hunter can only touch repos you can administer.</p>
+<p><a href="/logout">Sign out</a></p>
+</div>`
+    : opts.oauthEnabled
+      ? `<div class="card">
+<h2>Connect with GitHub</h2>
+<p>One click — no secret to copy. GitHub asks you to allow reading pull requests and managing repo webhooks.</p>
+<p><a class="btn" href="/auth/github">Connect with GitHub</a></p>
+<p class="hint">Your GitHub account decides which repos you can connect. Nothing is stored on this server beyond a signed cookie.</p>
+</div>`
+      : "";
+
+  // The shared secret stays available for scripts and n8n, and the input keeps its
+  // id so existing callers (and tests) that drive this form are unaffected.
+  const secretSummary = opts.session
+    ? "Advanced: shared secret (not needed while signed in)"
+    : opts.oauthEnabled
+      ? "Advanced: use a shared secret instead of signing in"
+      : "Shared secret";
+
   const body = `
 <h1>Bug Hunter 🎃 — Connect a repo</h1>
 <p>Connect Bug Hunter to a repo and it hunts every pull request, posts the 🔮 Séance Report, and drops inline comments on the exact lines.</p>
-
+${notice}
+${loginCard}
 <div class="card">
+<details${opts.oauthEnabled || opts.session ? "" : " open"}>
+<summary>${escapeHtml(secretSummary)}</summary>
 <label for="secret">Shared secret (<code>N8N_SHARED_SECRET</code>)</label>
 <input id="secret" type="password" placeholder="your shared secret" />
+<p class="hint">Required only for direct API calls. A signed-in browser session is authorised automatically.</p>
+</details>
 
 <h2>Hunt a PR now</h2>
 <p>No webhook needed — paste a PR URL and hunt it immediately.</p>
@@ -206,7 +251,9 @@ ${connectSection}
     });
   }
   function fail(out, r) {
-    out.innerHTML = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.status));
+    var msg = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.status));
+    if (r.j && r.j.login_url) msg += ' <a href="' + esc(r.j.login_url) + '">Sign in with GitHub</a>';
+    out.innerHTML = msg;
   }
 
   var huntBtn = document.getElementById('hunt-btn');
