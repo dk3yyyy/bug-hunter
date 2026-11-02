@@ -10,7 +10,7 @@ vi.hoisted(() => {
   process.env.N8N_SHARED_SECRET = "this-is-a-long-secret-123";
 });
 
-import { installUrl, addRepo, removeRepo, listRepos } from "../src/github/app";
+import { installUrl, connectUrlFor, addRepo, removeRepo, listRepos } from "../src/github/app";
 
 describe("installUrl", () => {
   it("builds the install URL without a state param", () => {
@@ -29,6 +29,25 @@ describe("installUrl", () => {
     expect(installUrl("bug-hunter", "a b")).toBe(
       "https://github.com/apps/bug-hunter/installations/new?state=a%20b",
     );
+  });
+});
+
+describe("connectUrlFor", () => {
+  it("uses GitHub's install page in App mode", () => {
+    expect(
+      connectUrlFor({ mode: "app", appSlug: "bug-hunter", appUrl: "https://bh.example.com" }),
+    ).toBe("https://github.com/apps/bug-hunter/installations/new");
+  });
+
+  it("uses APP_URL's /connect in PAT mode when a deployment URL is set", () => {
+    expect(
+      connectUrlFor({ mode: "pat", appSlug: "", appUrl: "https://bh.example.com/" }),
+    ).toBe("https://bh.example.com/connect");
+  });
+
+  it("falls back to this origin's /connect in PAT mode without APP_URL", () => {
+    expect(connectUrlFor({ mode: "pat", appSlug: "", appUrl: "" })).toBe("/connect");
+    expect(connectUrlFor({ mode: "pat", appSlug: "", appUrl: "   " })).toBe("/connect");
   });
 });
 

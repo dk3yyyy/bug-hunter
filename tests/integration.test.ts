@@ -39,6 +39,14 @@ describe("server (in-process)", () => {
     expect(html).toContain('id="secret"');
   });
 
+  it("always shows the connect-a-repo form, even without PUBLIC_URL", async () => {
+    const res = await app.request("/connect");
+    const html = await res.text();
+    expect(html).toContain('id="repo"');
+    expect(html).toContain('id="public_url"');
+    expect(html).toContain('id="connect-btn"');
+  });
+
   it("health endpoint responds", async () => {
     const res = await app.request("/health");
     expect(res.status).toBe(200);
@@ -71,6 +79,16 @@ describe("server (in-process)", () => {
     });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain("PUBLIC_URL");
+  });
+
+  it("rejects a localhost public_url before calling GitHub (400, no network)", async () => {
+    const res = await app.request("/api/connect", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-BugHunter-Secret": "this-is-a-long-secret-123" },
+      body: JSON.stringify({ repo: "a/b", public_url: "http://localhost:3000" }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("localhost");
   });
 
   it("serves the dashboard", async () => {

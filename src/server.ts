@@ -7,7 +7,8 @@ import { Webhooks } from "@octokit/webhooks";
 import PQueue from "p-queue";
 import { env } from "./env";
 import { getOctokit } from "./github/client";
-import { installUrl, addRepo, removeRepo, listRepos } from "./github/app";
+import { installUrl, addRepo, removeRepo, listRepos, connectUrlFor, installationIdForRepo } from "./github/app";
+import { webhookUrlFor } from "./connect";
 import * as api from "./github/api";
 import {
   isSelfEvent,
@@ -86,6 +87,27 @@ function authSecret(c: { req: { header: (n: string) => string | undefined } }): 
   const a = createHash("sha256").update(given).digest();
   const b = createHash("sha256").update(env.N8N_SHARED_SECRET).digest();
   return timingSafeEqual(a, b);
+}
+
+function githubStatus(e: unknown): number | undefined {
+  const status = (e as { status?: unknown } | null)?.status;
+  return typeof status === "number" ? status : undefined;
+}
+
+/**
+ * Turn Octokit's terse error names into something the Connect button can show.
+ * "HttpError" alone leaves people guessing whether the repo, token or URL is wrong.
+ */
+function connectErrorMessage(e: unknown): string {
+  const status = githubStatus(e);
+  if (status === 401) return "GitHub rejected the token — check GITHUB_TOKEN.";
+  if (status === 403)
+    return "The token can't manage webhooks. Fine-grained tokens need Webhooks: Read & write; classic tokens need admin:repo_hook.";
+  if (status === 404)
+    return "Repo not found, or the token can't see it. Check owner/name and the token's repository access.";
+  if (status === 422)
+    return "GitHub rejected the webhook (422) — the URL may be unreachable or the repo hit its webhook limit.";
+  return e instanceof Error ? `${e.name} while creating the webhook` : "Webhook creation failed";
 }
 
 async function readGuidelines(
@@ -469,12 +491,25 @@ webhooks.on("installation_repositories", async ({ id, payload }) => {
 
 const repoUrl = env.LANDING_REPO_URL || "https://github.com/dk3yyyy/bug-hunter";
 
-// "Connect a repo": in App mode this is the GitHub App install page; in PAT mode
-// it's this server's /connect (same origin), which works on localhost and any
-// deployment. No more sending people to the GitHub repo.
-const connectUrl = env.GITHUB_MODE === "app" ? installUrl(env.GITHUB_APP_SLUG) : "/connect";
+// "Connect a repo": in App mode this is the GitHub App install page; otherwise
+// it's the hosted app's /connect (APP_URL) or this origin's /connect. The rule
+// lives in connectUrlFor() so PAT/App/static deployments can't drift apart.
+const connectUrl = connectUrlFor({
+  mode: env.GITHUB_MODE,
+  appSlug: env.GITHUB_APP_SLUG,
+  appUrl: env.APP_URL,
+});
 app.get("/", (c) => c.html(renderLanding({ connectUrl, repoUrl })));
-app.get("/connect", (c) => c.html(renderConnect(env.PUBLIC_URL, env.BOT_HANDLE)));
+app.get("/connect", (c) =>
+  c.html(
+    renderConnect({
+      publicUrl: env.PUBLIC_URL,
+      botHandle: env.BOT_HANDLE,
+      mode: env.GITHUB_MODE,
+      installUrl: env.GITHUB_MODE === "app" ? installUrl(env.GITHUB_APP_SLUG) : undefined,
+    }),
+  ),
+);
 
 // One-click install redirect (Step 4): app mode → GitHub install page, pat → /connect.
 app.get("/summon", (c) => {
@@ -520,8 +555,27 @@ app.post("/api/hunt", async (c) => {
     return c.json({ error: "need { pr_url } or { owner, repo, pr }" }, 400);
   }
 
+  // App mode has no PAT. Webhooks carry installation.id, but this manual trigger
+  // has no payload to read it from — resolve it from the repo (otherwise every
+  // manual hunt 500s with "requires an installation id").
+  let installationId: number | undefined;
+  if (env.GITHUB_MODE === "app") {
+    try {
+      installationId = await installationIdForRepo(owner, repo);
+    } catch {
+      return c.json(
+        {
+          error:
+            `Bug Hunter's GitHub App isn't installed on ${owner}/${repo}, ` +
+            "or GITHUB_APP_ID / GITHUB_PRIVATE_KEY_PATH is wrong. Install the app first.",
+        },
+        400,
+      );
+    }
+  }
+
   try {
-    const record = await runHuntForPr(owner, repo, prNumber);
+    const record = await runHuntForPr(owner, repo, prNumber, undefined, installationId);
     if (!record)
       return c.json({ error: "PR is closed, draft, not found, or a hunt is already running" }, 404);
     return c.json(record);
@@ -537,24 +591,63 @@ app.post("/api/hunt", async (c) => {
 // Auto-connect (Option B): create a webhook on a repo using the PAT.
 app.post("/api/connect", async (c) => {
   if (!authSecret(c)) return c.json({ error: "unauthorized" }, 401);
-  if (!env.PUBLIC_URL) {
-    return c.json({ error: "PUBLIC_URL not set — set it to this server's public URL" }, 400);
+
+  // App mode connects repos by installation. GitHub Apps cannot create repo
+  // webhooks with an installation token, so send people to the install page.
+  if (env.GITHUB_MODE === "app") {
+    return c.json(
+      {
+        error: "GITHUB_MODE=app connects repos through GitHub's install page — no webhook needed.",
+        install_url: installUrl(env.GITHUB_APP_SLUG),
+      },
+      400,
+    );
   }
+
   const body = await c.req.json().catch(() => null);
-  const full = typeof body?.repo === "string" ? body.repo : "";
+  const full = typeof body?.repo === "string" ? body.repo.trim() : "";
   const [owner, repo] = full.split("/");
   if (!owner || !repo) return c.json({ error: "need { repo: 'owner/name' }" }, 400);
+
+  // PUBLIC_URL is the documented setting; `public_url` lets a tunnel/deployed
+  // user connect without editing .env and restarting. GitHub must be able to
+  // reach it, so localhost/private addresses are rejected with a clear reason.
+  const given = typeof body?.public_url === "string" ? body.public_url : "";
+  const base = given.trim() || env.PUBLIC_URL;
+  if (!base) {
+    return c.json(
+      {
+        error:
+          "PUBLIC_URL not set — pass public_url (e.g. your ngrok/smee URL) or set PUBLIC_URL in .env",
+      },
+      400,
+    );
+  }
+  const target = webhookUrlFor(base);
+  if (!target.ok) return c.json({ error: target.reason }, 400);
+
+  const webhookUrl = target.url;
   try {
-    const id = await api.createRepoWebhook(
+    const hook = await api.ensureRepoWebhook(
       await getOctokit(),
       owner,
       repo,
-      `${env.PUBLIC_URL.replace(/\/$/, "")}/webhooks/github`,
+      webhookUrl,
       env.GITHUB_WEBHOOK_SECRET,
     );
-    return c.json({ ok: true, webhook_id: id, repo: full });
+    return c.json({
+      ok: true,
+      repo: full,
+      webhook_id: hook.id,
+      webhook_url: webhookUrl,
+      created: hook.created,
+    });
   } catch (e) {
-    return c.json({ error: e instanceof Error ? e.name : "connect failed" }, 500);
+    const status = githubStatus(e);
+    return c.json(
+      { error: connectErrorMessage(e) },
+      status === 403 ? 403 : status === 404 ? 404 : 502,
+    );
   }
 });
 
@@ -570,7 +663,9 @@ app.get("/api/hunts/:id", (c) => {
 
 // In-memory results dashboard (Step 4).
 app.get("/dashboard", (c) => c.html(renderDashboard([...hunts.values()])));
-app.get("/summoned", (c) => c.html(renderSummoned()));
+app.get("/summoned", (c) =>
+  c.html(renderSummoned(listRepos(), c.req.query("installation_id"))),
+);
 
 // Only start the server when this file is run directly (not when imported by tests).
 import { fileURLToPath } from "node:url";

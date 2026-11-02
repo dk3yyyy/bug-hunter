@@ -202,6 +202,33 @@ export async function createRepoWebhook(
   return data.id;
 }
 
+/**
+ * Idempotent webhook creation for the "Connect a repo" button.
+ *
+ * Clicking Connect twice used to fail with GitHub's 422 "Hook already exists",
+ * which reads like the button is broken. If a hook already points at this
+ * server's /webhooks/github, report it instead of creating a duplicate.
+ */
+export async function ensureRepoWebhook(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  url: string,
+  secret: string,
+): Promise<{ id: number; created: boolean }> {
+  const { data: hooks } = await octokit.rest.repos.listWebhooks({
+    owner,
+    repo,
+    per_page: 100,
+  });
+  const existing = hooks.find((h) => {
+    const config = h.config as unknown as { url?: unknown };
+    return typeof config.url === "string" && config.url === url;
+  });
+  if (existing) return { id: existing.id, created: false };
+  return { id: await createRepoWebhook(octokit, owner, repo, url, secret), created: true };
+}
+
 /** React 👀 to a comment (best-effort, never throws). */
 export async function addReaction(
   octokit: Octokit,
