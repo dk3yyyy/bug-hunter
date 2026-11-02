@@ -18,7 +18,13 @@ const schema = z.object({
   GITHUB_TOKEN: z.string().default(""),
   GITHUB_APP_ID: z.string().default(""),
   GITHUB_APP_SLUG: z.string().default(""),
+  // PEM file on disk. Used when GITHUB_PRIVATE_KEY is empty (local dev / Docker
+  // volume). Hosts that only expose env vars (Render, Railway, Fly secrets) set
+  // GITHUB_PRIVATE_KEY instead, since they cannot mount a file.
   GITHUB_PRIVATE_KEY_PATH: z.string().default("./private-key.pem"),
+  // Inline PEM content (takes precedence over GITHUB_PRIVATE_KEY_PATH). Literal
+  // "\n" sequences are normalised at use, so a single-line env var works too.
+  GITHUB_PRIVATE_KEY: z.string().default(""),
   // Public base URL of this server (e.g. https://bug-hunter.example.com), as
   // reachable from GitHub. Used by the auto-connect endpoint to register repo
   // webhooks. Empty = the /connect form asks for a tunnel/deployment URL.
@@ -106,6 +112,24 @@ const schema = z.object({
 
 export type Env = z.infer<typeof schema>;
 
+/**
+ * The public origin the hosting platform assigns to this service. Render sets
+ * RENDER_EXTERNAL_URL, Railway sets RAILWAY_PUBLIC_DOMAIN (a bare host, no
+ * scheme). Used only when PUBLIC_URL is empty, so a first deploy works without
+ * someone hand-copying the URL — the missing PUBLIC_URL was what made
+ * POST /api/connect return 400 on a fresh instance.
+ */
+function platformPublicUrl(): string {
+  const render = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (render) return render.replace(/\/+$/, "");
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) {
+    const withScheme = railway.startsWith("http") ? railway : `https://${railway}`;
+    return withScheme.replace(/\/+$/, "");
+  }
+  return "";
+}
+
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
@@ -115,4 +139,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env: Env = parsed.data;
+const data = parsed.data;
+if (!data.PUBLIC_URL.trim()) {
+  const derived = platformPublicUrl();
+  if (derived) data.PUBLIC_URL = derived;
+}
+
+export const env: Env = data;
