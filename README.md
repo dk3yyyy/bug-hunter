@@ -125,8 +125,26 @@ The GitHub Pages landing is static: it can send people somewhere, but it cannot 
 a webhook or run a review. For the button to work end to end, deploy this server and
 point the landing at it:
 
+### Deploy to Render or Railway
+
+Both platforms build the repo's `Dockerfile`, and the config is committed:
+
+- **Render** — `render.yaml` blueprint. Dashboard → **New → Blueprint** → pick this
+  repo. It creates the service, generates `GITHUB_WEBHOOK_SECRET` and
+  `N8N_SHARED_SECRET`, and prompts for the two secrets it cannot invent
+  (`GITHUB_TOKEN` and your model key).
+- **Railway** — `railway.json`. **New Project → Deploy from GitHub repo**, then add
+  `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `N8N_SHARED_SECRET` and your model key
+  under **Variables**.
+
+`PUBLIC_URL` is derived from `RENDER_EXTERNAL_URL` / `RAILWAY_PUBLIC_DOMAIN`, so a
+first deploy can register webhooks without anyone copying the URL by hand. Set it
+explicitly only for a custom domain. In App mode the PEM goes in `GITHUB_PRIVATE_KEY`
+as inline content, since neither host can mount a key file.
+
+Docker by hand still works:
+
 ```bash
-# any Node 22 host, or:
 docker build -t bug-hunter .
 docker run -p 3000:3000 --env-file .env bug-hunter
 ```

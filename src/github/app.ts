@@ -1,7 +1,8 @@
 // GitHub App auth + install-flow helpers (SPEC §6, Step 4: one-click App install).
-// The App client is built lazily and cached; the private key is read from the PEM
-// file pointed at by GITHUB_PRIVATE_KEY_PATH (never from an env var holding key
-// material — key content must never appear in logs or errors).
+// The App client is built lazily and cached; the private key comes from the inline
+// GITHUB_PRIVATE_KEY env var when set (Render/Railway/Fly secrets), otherwise from
+// the PEM file pointed at by GITHUB_PRIVATE_KEY_PATH. Key content must never appear
+// in logs or error messages.
 import { readFileSync } from "node:fs";
 import { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
@@ -57,7 +58,8 @@ let appInstance: ReturnType<typeof makeApp> | null = null;
 
 /**
  * Lazily build (and cache) the GitHub App client. Throws a clear error naming the
- * env var when GITHUB_APP_ID is unset or the private-key file is missing/unreadable.
+ * env var when GITHUB_APP_ID is unset or no usable private key is configured
+ * (inline GITHUB_PRIVATE_KEY, else the GITHUB_PRIVATE_KEY_PATH file).
  * No key material is ever included in the error message.
  */
 export function getApp(): ReturnType<typeof makeApp> {
@@ -66,12 +68,25 @@ export function getApp(): ReturnType<typeof makeApp> {
     throw new Error("GITHUB_APP_ID is required when GITHUB_MODE=app");
   }
   let privateKey: string;
-  try {
-    privateKey = readFileSync(env.GITHUB_PRIVATE_KEY_PATH, "utf8");
-  } catch {
+  if (env.GITHUB_PRIVATE_KEY.trim()) {
+    // Hosts that expose only env vars cannot mount a PEM file. Accept both real
+    // newlines and the literal "\n" that survives copy-paste into a dashboard.
+    privateKey = env.GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n");
+  } else {
+    try {
+      privateKey = readFileSync(env.GITHUB_PRIVATE_KEY_PATH, "utf8");
+    } catch {
+      throw new Error(
+        `GITHUB_PRIVATE_KEY_PATH (${env.GITHUB_PRIVATE_KEY_PATH}) is missing or unreadable — ` +
+          "generate and download a private key for your GitHub App, or set GITHUB_PRIVATE_KEY " +
+          "with the PEM contents (required on hosts without a filesystem mount).",
+      );
+    }
+  }
+  if (!privateKey.includes("BEGIN") || !privateKey.includes("PRIVATE KEY")) {
     throw new Error(
-      `GITHUB_PRIVATE_KEY_PATH (${env.GITHUB_PRIVATE_KEY_PATH}) is missing or unreadable — ` +
-        "generate and download a private key for your GitHub App.",
+      "GitHub App private key is not a PEM private key — check GITHUB_PRIVATE_KEY / " +
+        "GITHUB_PRIVATE_KEY_PATH (the value itself is never printed).",
     );
   }
   appInstance = makeApp(privateKey);
