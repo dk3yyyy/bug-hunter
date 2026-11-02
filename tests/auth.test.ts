@@ -34,6 +34,17 @@ describe("buildAuthorizeUrl", () => {
     expect(url.searchParams.get("allow_signup")).toBe("false");
   });
 
+  it("asks for exactly read:user + repo, with no redundant hook scope", () => {
+    // `repo` already grants repository webhooks; requesting admin:repo_hook adds
+    // nothing and would only widen the consent screen.
+    expect(OAUTH_SCOPES).toEqual(["read:user", "repo"]);
+    const url = new URL(
+      buildAuthorizeUrl({ clientId: "x", redirectUri: "https://h/cb", state: "s" }),
+    );
+    expect(url.searchParams.get("scope")).toBe("read:user repo");
+    expect(url.searchParams.get("scope")).not.toContain("repo_hook");
+  });
+
   it("lets the caller narrow scopes", () => {
     const url = new URL(
       buildAuthorizeUrl({

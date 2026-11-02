@@ -13,13 +13,24 @@ const API = "https://api.github.com";
 
 /**
  * Minimal classic scopes:
- *  - read:user   — identity for the session (login, name, avatar)
- *  - repo        — read PRs/diffs on private repos
- *  - admin:repo_hook — create/delete the webhook that makes hunts automatic
- * `repo` is documented as full control of private repos but does NOT imply the
- * repo_hook scopes, so the hook scope is requested explicitly.
+ *  - read:user — explicit identity scope for the session (login, name, avatar).
+ *                Not strictly required (GET /user works with no scope), but it
+ *                documents the intent instead of relying on that.
+ *  - repo      — read PRs/diffs AND create/delete the webhook that makes hunts
+ *                automatic.
+ *
+ * `repo` already covers repository webhooks: GitHub documents it as "full access
+ * to public, internal, and private repositories including … and repository
+ * webhooks", and states plainly that "the repo and public_repo scopes grant full
+ * access to repositories, including repository webhooks". `admin:repo_hook` is
+ * only for hook access WITHOUT repo contents, so requesting it here is redundant.
+ *
+ * GitHub also *normalises* scopes, discarding ones implied by another requested
+ * scope, so the granted scope string may not echo everything back. Never gate
+ * logic on a specific scope appearing in the response — check `repo`.
+ * https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
  */
-export const OAUTH_SCOPES = ["read:user", "repo", "admin:repo_hook"] as const;
+export const OAUTH_SCOPES = ["read:user", "repo"] as const;
 
 export type OAuthConfig = {
   clientId: string;
