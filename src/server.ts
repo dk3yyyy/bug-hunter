@@ -8,7 +8,13 @@ import { Octokit } from "@octokit/rest";
 import { Webhooks } from "@octokit/webhooks";
 import PQueue from "p-queue";
 import { env } from "./env";
-import { buildAuthorizeUrl, exchangeCode, fetchUser, OAUTH_SCOPES } from "./auth";
+import {
+  buildAuthorizeUrl,
+  exchangeCode,
+  fetchUser,
+  refreshAccessToken,
+  OAUTH_SCOPES,
+} from "./auth";
 import { openSession, sealSession, SESSION_TTL_MS, type Session } from "./session";
 import { getOctokit } from "./github/client";
 import { installUrl, addRepo, removeRepo, listRepos, connectUrlFor, installationIdForRepo } from "./github/app";
@@ -164,6 +170,59 @@ const LOGIN_NOTICES: Record<string, string> = {
   denied: "That GitHub account is not allowed to sign in to this instance.",
   disabled: "GitHub login is not configured on this server.",
 };
+
+/** The OAuth client config, as the settings above resolve it. */
+function oauthCfg() {
+  return {
+    clientId: env.GITHUB_OAUTH_CLIENT_ID.trim(),
+    clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET.trim(),
+    redirectUri: redirectUriFor(),
+  };
+}
+
+/** Refresh slightly before real expiry so a request never races the deadline. */
+const REFRESH_SKEW_MS = 60_000;
+
+/**
+ * A usable access token for this session, refreshed first when it is about to
+ * expire. OAuth Apps created since Aug 2026 hand out 8-hour access tokens, so a
+ * 30-day session cookie would otherwise look signed in while every GitHub call
+ * returned 401. If the refresh fails the stale token is returned, letting GitHub's
+ * own 401 surface instead of pretending the call succeeded.
+ */
+async function tokenForSession(c: Context, session: Session): Promise<string> {
+  const expiresAt = session.expiresAt;
+  if (typeof expiresAt !== "number" || expiresAt - Date.now() > REFRESH_SKEW_MS) {
+    return session.token;
+  }
+  if (!session.refreshToken || !oauthEnabled()) return session.token;
+
+  const refreshed = await refreshAccessToken(oauthCfg(), session.refreshToken);
+  if (!refreshed.ok) {
+    console.error("session refresh failed:", refreshed.reason);
+    return session.token;
+  }
+
+  const next: Session = {
+    login: session.login,
+    token: refreshed.accessToken,
+    exp: session.exp,
+    ...(session.name ? { name: session.name } : {}),
+    ...(session.avatar ? { avatar: session.avatar } : {}),
+    ...(refreshed.expiresIn ? { expiresAt: Date.now() + refreshed.expiresIn * 1000 } : {}),
+    // GitHub can rotate the refresh token; always keep the newest one.
+    ...(refreshed.refreshToken
+      ? { refreshToken: refreshed.refreshToken }
+      : session.refreshToken
+        ? { refreshToken: session.refreshToken }
+        : {}),
+  };
+  setCookie(c, SESSION_COOKIE, sealSession(next, sessionKey()), {
+    ...cookieOptions(),
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+  return next.token;
+}
 
 function githubStatus(e: unknown): number | undefined {
   const status = (e as { status?: unknown } | null)?.status;
@@ -644,6 +703,10 @@ app.get("/auth/github/callback", async (c) => {
         exp: Date.now() + SESSION_TTL_MS,
         ...(user.name ? { name: user.name } : {}),
         ...(user.avatar ? { avatar: user.avatar } : {}),
+        // OAuth Apps created since Aug 2026 default to 8-hour access tokens plus a
+        // 6-month refresh token; record both so the session can renew itself.
+        ...(result.expiresIn ? { expiresAt: Date.now() + result.expiresIn * 1000 } : {}),
+        ...(result.refreshToken ? { refreshToken: result.refreshToken } : {}),
       },
       sessionKey(),
     ),
@@ -820,7 +883,7 @@ app.post("/api/connect", async (c) => {
   const webhookUrl = target.url;
   try {
     const hook = await api.ensureRepoWebhook(
-      session ? new Octokit({ auth: session.token }) : await getOctokit(),
+      session ? new Octokit({ auth: await tokenForSession(c, session) }) : await getOctokit(),
       owner,
       repo,
       webhookUrl,

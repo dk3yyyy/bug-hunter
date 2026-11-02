@@ -61,4 +61,19 @@ describe("sealed session cookie", () => {
     const buf = Buffer.from(sealed, "base64url").subarray(0, 28);
     expect(openSession(buf.toString("base64url"), SECRET)).toBeNull();
   });
+
+  it("preserves refresh token and access-token expiry", () => {
+    const s = session({ expiresAt: Date.now() + 28_800_000, refreshToken: "ghr_abc" });
+    const opened = openSession(sealSession(s, SECRET), SECRET);
+    expect(opened?.expiresAt).toBe(s.expiresAt);
+    expect(opened?.refreshToken).toBe("ghr_abc");
+  });
+
+  it("drops a malformed expiry rather than trusting it", () => {
+    const s = session();
+    const sealed = sealSession({ ...s, expiresAt: "soon" as unknown as number }, SECRET);
+    // Still a valid session, just without an expiry claim.
+    expect(openSession(sealed, SECRET)?.expiresAt).toBeUndefined();
+  });
+
 });

@@ -54,47 +54,73 @@ export function buildAuthorizeUrl(opts: {
 }
 
 export type TokenResult =
-  | { ok: true; accessToken: string; scope: string; tokenType: string }
+  | {
+      ok: true;
+      accessToken: string;
+      scope: string;
+      tokenType: string;
+      /** Seconds until the access token expires, when GitHub returns expires_in. */
+      expiresIn?: number;
+      /**
+       * Present only when the OAuth App issues expiring tokens (the default for
+       * apps created since Aug 2026): an 8-hour access token plus a 6-month
+       * refresh token.
+       */
+      refreshToken?: string;
+    }
   | { ok: false; reason: string };
 
+type TokenBody = {
+  access_token?: unknown;
+  scope?: unknown;
+  token_type?: unknown;
+  expires_in?: unknown;
+  refresh_token?: unknown;
+  error?: unknown;
+  error_description?: unknown;
+};
+
 /**
- * Exchange the one-time `code` for an access token. GitHub signals failure with
- * HTTP 200 and an `error` field, so the body has to be inspected, not just the
- * status. No error message here ever includes the token or the client secret.
+ * Shared POST to the token endpoint. GitHub reports failures with HTTP 200 and an
+ * `error` field, and a misconfigured app can return 200 with no token at all, so
+ * the body is inspected rather than the status alone. Messages never include the
+ * access token, refresh token or client secret.
  */
-export async function exchangeCode(
-  cfg: OAuthConfig,
-  code: string,
-  fetchImpl: typeof fetch = fetch,
+async function requestToken(
+  payload: Record<string, string>,
+  kind: "login" | "refresh",
+  fetchImpl: typeof fetch,
 ): Promise<TokenResult> {
+  const what = kind === "login" ? "login exchange" : "token refresh";
   let res: Response;
   try {
     res = await fetchImpl(TOKEN_URL, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        client_id: cfg.clientId,
-        client_secret: cfg.clientSecret,
-        code,
-        redirect_uri: cfg.redirectUri,
-      }),
+      body: JSON.stringify(payload),
     });
   } catch {
-    return { ok: false, reason: "Could not reach GitHub to exchange the login code." };
+    return {
+      ok: false,
+      reason:
+        kind === "login"
+          ? "Could not reach GitHub to exchange the login code."
+          : "Could not reach GitHub to refresh the session token.",
+    };
   }
 
-  const body = (await res.json().catch(() => null)) as
-    | { access_token?: unknown; scope?: unknown; token_type?: unknown; error?: unknown; error_description?: unknown }
-    | null;
+  const body = (await res.json().catch(() => null)) as TokenBody | null;
 
   if (!res.ok) {
-    return { ok: false, reason: `GitHub rejected the login exchange (HTTP ${res.status}).` };
+    return { ok: false, reason: `GitHub rejected the ${what} (HTTP ${res.status}).` };
   }
   if (body?.error) {
     const description = typeof body.error_description === "string" ? body.error_description : "";
     return {
       ok: false,
-      reason: `GitHub refused the login${description ? `: ${description}` : ` (${String(body.error)})`}.`,
+      reason: `GitHub refused the ${kind === "login" ? "login" : "token refresh"}${
+        description ? `: ${description}` : ` (${String(body.error)})`
+      }.`,
     };
   }
   if (typeof body?.access_token !== "string" || !body.access_token) {
@@ -102,7 +128,10 @@ export async function exchangeCode(
     // 200 with no token at all.
     return {
       ok: false,
-      reason: "GitHub returned no access token — check GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET.",
+      reason:
+        kind === "login"
+          ? "GitHub returned no access token — check GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET."
+          : "GitHub returned no access token when refreshing — the refresh token may be expired or revoked.",
     };
   }
   return {
@@ -110,7 +139,54 @@ export async function exchangeCode(
     accessToken: body.access_token,
     scope: typeof body.scope === "string" ? body.scope : "",
     tokenType: typeof body.token_type === "string" ? body.token_type : "bearer",
+    ...(typeof body.expires_in === "number" && body.expires_in > 0
+      ? { expiresIn: body.expires_in }
+      : {}),
+    ...(typeof body.refresh_token === "string" && body.refresh_token
+      ? { refreshToken: body.refresh_token }
+      : {}),
   };
+}
+
+/** Exchange the one-time `code` for an access token. */
+export async function exchangeCode(
+  cfg: OAuthConfig,
+  code: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TokenResult> {
+  return requestToken(
+    {
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      code,
+      redirect_uri: cfg.redirectUri,
+    },
+    "login",
+    fetchImpl,
+  );
+}
+
+/**
+ * Swap a refresh token for a fresh access token. Needed because OAuth Apps created
+ * since Aug 2026 issue 8-hour access tokens by default — without this, a session
+ * would look signed in while every GitHub call returned 401.
+ * https://docs.github.com/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#expiring-access-tokens
+ */
+export async function refreshAccessToken(
+  cfg: OAuthConfig,
+  refreshToken: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TokenResult> {
+  return requestToken(
+    {
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    },
+    "refresh",
+    fetchImpl,
+  );
 }
 
 export type GitHubUser = { login: string; name?: string; avatar?: string };
