@@ -16,6 +16,39 @@ export function installUrl(slug: string, state?: string): string {
   return state === undefined ? base : `${base}?state=${encodeURIComponent(state)}`;
 }
 
+/**
+ * Where the landing's "Connect a repo" button should go.
+ *
+ * - App mode: GitHub's install page — one click, no secret, works from a static
+ *   page (the webhooks then arrive at this server).
+ * - PAT mode + APP_URL: that deployment's /connect page. This is what lets the
+ *   GitHub Pages landing point at a hosted instance instead of dropping people
+ *   on the README.
+ * - PAT mode, no APP_URL: this server's own /connect (same origin).
+ *
+ * Pure so the routing rule is unit-tested instead of guessed at.
+ */
+export function connectUrlFor(opts: {
+  mode: "pat" | "app";
+  appSlug: string;
+  appUrl: string;
+}): string {
+  if (opts.mode === "app") return installUrl(opts.appSlug);
+  const base = opts.appUrl.trim().replace(/\/+$/, "");
+  return base ? `${base}/connect` : "/connect";
+}
+
+/**
+ * Resolve the installation that can see owner/repo. In App mode a webhook carries
+ * `installation.id`, but the manual trigger (`POST /api/hunt`) has no payload to
+ * read it from — without this, `getOctokit()` would throw and every manual hunt
+ * would 500.
+ */
+export async function installationIdForRepo(owner: string, repo: string): Promise<number> {
+  const { data } = await getApp().octokit.rest.apps.getRepoInstallation({ owner, repo });
+  return data.id;
+}
+
 function makeApp(privateKey: string) {
   return new App({ appId: env.GITHUB_APP_ID, privateKey, Octokit });
 }

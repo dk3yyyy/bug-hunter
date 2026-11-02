@@ -10,8 +10,12 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "check:models": "tsx scripts/check-models.ts",
+    "build:landing": "node scripts/build-landing.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

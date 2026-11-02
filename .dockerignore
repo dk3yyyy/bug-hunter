@@ -1,0 +1,12 @@
+node_modules
+.git
+.github
+.env
+.env.*
+!.env.example
+*.pem
+private-key.pem
+dist
+docs/landing.png
+.DS_Store
+*.log

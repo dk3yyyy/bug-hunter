@@ -19,13 +19,15 @@ const schema = z.object({
   GITHUB_APP_ID: z.string().default(""),
   GITHUB_APP_SLUG: z.string().default(""),
   GITHUB_PRIVATE_KEY_PATH: z.string().default("./private-key.pem"),
-  // Public base URL of this server (e.g. https://bug-hunter.example.com). Used
-  // by the auto-connect endpoint to register repo webhooks. Empty = auto-connect off.
+  // Public base URL of this server (e.g. https://bug-hunter.example.com), as
+  // reachable from GitHub. Used by the auto-connect endpoint to register repo
+  // webhooks. Empty = the /connect form asks for a tunnel/deployment URL.
   PUBLIC_URL: z.string().default(""),
   // GitHub repo URL for the landing page "View the repo" buttons. Empty = keep "#".
   LANDING_REPO_URL: z.string().default(""),
-  // Public URL of the running app. When set, the landing "Connect a repo" button
-  // links to <APP_URL>/connect; otherwise it falls back to the repo's setup docs.
+  // Public URL of a hosted app. When set, the landing "Connect a repo" button
+  // links to <APP_URL>/connect (same rule as the GitHub Pages build). Empty =
+  // this server's own /connect.
   APP_URL: z.string().default(""),
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(""),
   GEMINI_MODEL_REVIEW: z.string().default("gemini-flash-latest"),
@@ -57,7 +59,8 @@ const schema = z.object({
       path: ["N8N_SHARED_SECRET"],
       message: "N8N_SHARED_SECRET must be at least 16 characters",
     });
-  }  if (v.GITHUB_MODE === "pat" && !v.GITHUB_TOKEN) {
+  }
+  if (v.GITHUB_MODE === "pat" && !v.GITHUB_TOKEN) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["GITHUB_TOKEN"],

@@ -63,12 +63,18 @@ Fill in `.env`:
     `openai-compatible`. The Gemini key is only required for `google`.
 - `GITHUB_TOKEN` — a fine-grained personal access token scoped to your repo
   (Contents: Read · Pull requests: Read & write · Issues: Read & write · Commit statuses:
-  Read & write · Metadata: Read).
+  Read & write · Webhooks: Read & write · Metadata: Read). **Webhooks** is only needed
+  for one-click auto-connect; classic tokens need `repo` (or `admin:repo_hook`).
 - `GITHUB_WEBHOOK_SECRET` — a random string; it must match the secret on your GitHub webhook.
 - `N8N_SHARED_SECRET` — random, **at least 16 chars** (also the `X-BugHunter-Secret`
   for `/api/hunt` and `/api/connect`).
 - `N8N_HUNT_WEBHOOK_URL` — optional, for the n8n workflow.
-- `PUBLIC_URL` — optional; enables one-click webhook registration via `/api/connect`.
+- `PUBLIC_URL` — optional; the public URL of this server (a tunnel or a deployment).
+  Enables one-click webhook registration on `/connect`. You can also paste the URL
+  into the form instead of setting it here.
+- `APP_URL` — optional; the URL of a hosted instance. When set, the landing's
+  "Connect a repo" button points at `<APP_URL>/connect` (the GitHub Pages build
+  reads the `APP_URL` repository variable).
 
 ### Providers
 
@@ -91,18 +97,64 @@ To list the valid ids for your provider, run `npm run check:models`. If the defa
 There are three ways to point Bug Hunter at a repository:
 
 1. **Hunt a PR now** (no setup) — the `/connect` page or `POST /api/hunt`.
-2. **Webhook** — point the repo's webhook at `/webhooks/github` (content type
-   `application/json`, secret = `GITHUB_WEBHOOK_SECRET`, events **Pull requests** +
-   **Issue comments**). For localhost, forward it:
+2. **Webhook** — on `/connect`, paste `owner/name` and the public URL of this server;
+   Bug Hunter creates the webhook (`pull_request` + `issue_comment`, content type
+   `application/json`, secret = `GITHUB_WEBHOOK_SECRET`). Or add it by hand to
+   `<public-url>/webhooks/github`. GitHub must be able to reach that URL, so for
+   localhost use a tunnel and paste the tunnel URL into the form (or set `PUBLIC_URL`):
    ```bash
    npx smee -u https://smee.io/<your-channel> -t http://localhost:3000/webhooks/github
    # or: ngrok http 3000
    ```
-   With `PUBLIC_URL` set, `POST /api/connect` creates the webhook for you.
+   For smee, paste the full `https://smee.io/<your-channel>` URL — Bug Hunter keeps the
+   channel path (that is what smee forwards); for ngrok/cloudflared it appends
+   `/webhooks/github`.
+   Clicking Connect twice is safe: an existing hook that already points at the same
+   URL is reused instead of failing with GitHub's "Hook already exists".
 3. **GitHub App (one-click install)** — set `GITHUB_MODE=app` plus `GITHUB_APP_ID`,
    `GITHUB_APP_SLUG` and `GITHUB_PRIVATE_KEY_PATH`; the landing's "Connect a repo" and
    `/summon` hand off to GitHub's app-install page, and `installation` webhooks keep the
-   repo list in sync. This is the full CodeRabbit/Greptile-style flow.
+   repo list in sync. This is the full CodeRabbit/Greptile-style flow. The App needs
+   **Pull requests**, **Issues** and **Commit statuses** read & write, **Contents** read,
+   the **Pull request** + **Issue comment** + **Installation** events, and a Setup URL
+   of `<public-url>/summoned`.
+
+### Why the public "Connect a repo" button needs a deployment
+
+The GitHub Pages landing is static: it can send people somewhere, but it cannot create
+a webhook or run a review. For the button to work end to end, deploy this server and
+point the landing at it:
+
+```bash
+# any Node 22 host, or:
+docker build -t bug-hunter .
+docker run -p 3000:3000 --env-file .env bug-hunter
+```
+
+Then set:
+
+- `PUBLIC_URL=https://your-host` on the server (the webhook target), and
+- the repository variable `APP_URL=https://your-host` so the next Pages deploy links
+  "Connect a repo" to `https://your-host/connect`:
+  ```bash
+  gh variable set APP_URL --repo dk3yyyy/bug-hunter --body https://your-host
+  gh workflow run deploy-pages.yml   # changing a variable doesn't retrigger the deploy
+  ```
+
+Alternatively register a GitHub App and set an `APP_SLUG` repository variable; the
+static landing then links straight to `https://github.com/apps/<slug>/installations/new`.
+With neither variable set, the button stays on the page and scrolls to the self-host
+section instead of bouncing to the README.
+
+### Connect troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `400 PUBLIC_URL not set` | No `PUBLIC_URL` and no URL in the form — paste your tunnel/deployment URL. |
+| `GitHub can't reach localhost…` | A webhook needs a public URL. Use ngrok/smee/cloudflared or deploy. |
+| `403 The token can't manage webhooks` | Fine-grained token needs **Webhooks: Read & write**; classic needs `admin:repo_hook` (or `repo`). |
+| `404 Repo not found…` | Wrong `owner/name`, or the token isn't scoped to that repo. |
+| `422 GitHub rejected the webhook` | Unreachable URL, or the repo hit its webhook limit. |
 
 ## Endpoints
 
@@ -115,7 +167,7 @@ There are three ways to point Bug Hunter at a repository:
 | GET | `/health` | none | liveness |
 | POST | `/webhooks/github` | webhook signature | GitHub PR / issue-comment / installation events |
 | POST | `/api/hunt` | `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
-| POST | `/api/connect` | `X-BugHunter-Secret` | create a repo webhook via the PAT (needs `PUBLIC_URL`) |
+| POST | `/api/connect` | `X-BugHunter-Secret` | create/reuse a repo webhook: `{ "repo", "public_url"? }` (or `PUBLIC_URL`) |
 | GET | `/api/hunts` | `X-BugHunter-Secret` | recent hunts (JSON) |
 | GET | `/api/hunts/:id` | `X-BugHunter-Secret` | one hunt (JSON) |
 

@@ -38,6 +38,7 @@ button:hover{filter:brightness(1.08)}
 button:active{transform:translateY(1px)}
 button:disabled{opacity:.5;cursor:not-allowed}
 .result{margin-top:14px;padding:12px;border-radius:8px;background:color-mix(in srgb,var(--ember) 12%,transparent);font-size:14px}
+.hint{color:var(--muted);font-size:13px;line-height:1.45;margin:-6px 0 14px}
 .badge{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
 .b-possessed{background:var(--crit);color:#150D24}
 .b-haunted{background:#5b1a2e;color:#ffb3c1}
@@ -116,28 +117,56 @@ ${table}
   );
 }
 
-export function renderSummoned(): string {
+export function renderSummoned(repos: string[] = [], installationId?: string): string {
+  const repoList = repos.length
+    ? `<ul>${repos
+        .map(
+          (r) =>
+            `<li><a href="https://github.com/${encodeURI(r)}">${escapeHtml(r)}</a></li>`,
+        )
+        .join("")}</ul>`
+    : `<p>No repositories recorded yet. If you just installed the app, refresh in a moment — GitHub's <code>installation</code> webhook may still be arriving.</p>`;
+
   return shell(
     "Bug Hunter — Summoned",
     `<h1>Bug Hunter 🕯️</h1>
-<p>The hunter has been summoned. Open a pull request and watch the hunt begin.</p>
+<p>The hunter has been summoned${installationId ? ` for installation <code>${escapeHtml(installationId)}</code>` : ""}. Open a pull request and watch the hunt begin.</p>
+<h2>Connected repos</h2>
+${repoList}
 <p><a href="/dashboard">View recent hunts</a></p>`,
   );
 }
 
-/** Connect page: hunt a PR now or auto-create a webhook (SPEC §6, §7). */
-export function renderConnect(publicUrl: string, botHandle: string): string {
-  const autoConnect = publicUrl
-    ? `<h2>Auto-connect a repo</h2>
-<p>Create a webhook on a repo so future PRs are hunted automatically:</p>
+/** Connect page: hunt a PR now or connect a repo for automatic hunts (SPEC §6, §7). */
+export function renderConnect(opts: {
+  publicUrl: string;
+  botHandle: string;
+  mode: "pat" | "app";
+  installUrl?: string;
+}): string {
+  const connectSection =
+    opts.mode === "app"
+      ? `<h2>Connect a repo</h2>
+<p>Bug Hunter is running as a GitHub App. Install it on the repos you want hunted — no secret or webhook setup needed.</p>
+<div class="card">
+<p><a class="btn" href="${escapeHtml(opts.installUrl ?? "https://github.com/apps")}">Install the GitHub App</a></p>
+<p class="hint">GitHub's <code>installation</code> webhook keeps the connected-repo list in sync.</p>
+</div>`
+      : `<h2>Connect a repo (webhooks)</h2>
+<p>Create a webhook so every new pull request is hunted automatically. GitHub has to be able to reach this server.</p>
 <div class="card">
 <label for="repo">Repo</label>
-<input id="repo" placeholder="owner/name" />
-<button id="connect-btn" type="button">Connect</button>
+<input id="repo" placeholder="owner/name" autocomplete="off" spellcheck="false" />
+<label for="public_url">Public URL of this server</label>
+<input id="public_url" placeholder="https://abc123.ngrok-free.app" value="${escapeHtml(opts.publicUrl)}" autocomplete="off" spellcheck="false" />
+<p class="hint">${
+          opts.publicUrl
+            ? "Pre-filled from <code>PUBLIC_URL</code>. Change it if you're using a different tunnel (for smee, paste the full channel URL)."
+            : "No <code>PUBLIC_URL</code> set. Paste a tunnel URL (ngrok, cloudflared) or a full smee channel URL, or set <code>PUBLIC_URL</code> in <code>.env</code> and restart."
+        }</p>
+<button id="connect-btn" type="button">Connect this repo</button>
 <div class="result" id="connect-result"></div>
-</div>`
-    : `<h2>Auto-connect (webhook)</h2>
-<p class="muted">Off — set <code>PUBLIC_URL</code> to this server's public URL to enable one-click webhook registration.</p>`;
+</div>`;
 
   const body = `
 <h1>Bug Hunter 🎃 — Connect a repo</h1>
@@ -155,25 +184,30 @@ export function renderConnect(publicUrl: string, botHandle: string): string {
 <div class="result" id="hunt-result"></div>
 </div>
 
-${autoConnect}
+${connectSection}
 
-<p>Or comment <code>@${botHandle} hunt</code> on a pull request to summon a hunt in-thread.</p>
+<p>Or comment <code>@${opts.botHandle} hunt</code> on a pull request to summon a hunt in-thread.</p>
 <p><a href="/dashboard">View recent hunts →</a></p>
 
 <script>
 (function () {
   function secret() { return document.getElementById('secret').value; }
-  function post(path, body, outEl) {
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function post(path, body) {
     return fetch(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-BugHunter-Secret': secret() },
       body: JSON.stringify(body),
     }).then(async function (r) {
       const j = await r.json().catch(function () { return {}; });
-      return { ok: r.ok, j: j };
+      return { ok: r.ok, status: r.status, j: j };
     });
   }
-  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fail(out, r) {
+    out.innerHTML = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.status));
+  }
 
   var huntBtn = document.getElementById('hunt-btn');
   if (huntBtn) huntBtn.addEventListener('click', function () {
@@ -182,12 +216,12 @@ ${autoConnect}
     if (!url) { out.textContent = '✗ Enter a PR URL.'; return; }
     out.innerHTML = '🔦 Hunting… this can take a minute.';
     huntBtn.disabled = true;
-    post('/api/hunt', { pr_url: url }, out).then(function (r) {
+    post('/api/hunt', { pr_url: url }).then(function (r) {
       huntBtn.disabled = false;
-      if (!r.ok) { out.innerHTML = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.ok)); return; }
+      if (!r.ok) { fail(out, r); return; }
       out.innerHTML = '🕯️ <b>Hunt complete.</b> Haunting level: <b>' + esc(r.j.hauntingLevel) +
-        '</b> · ' + r.j.keptCount + ' spirit(s) · ' + (r.j.exorcised||0) + ' exorcised · ' +
-        '<a href="' + esc(r.j.prUrl) + '" target="_blank">view PR</a>';
+        '</b> · ' + esc(r.j.keptCount) + ' spirit(s) · ' + esc(r.j.exorcised || 0) + ' exorcised · ' +
+        '<a href="' + esc(r.j.prUrl) + '" target="_blank" rel="noreferrer">view PR</a>';
     }).catch(function (e) { huntBtn.disabled = false; out.textContent = '✗ ' + e.message; });
   });
 
@@ -195,13 +229,16 @@ ${autoConnect}
   if (connectBtn) connectBtn.addEventListener('click', function () {
     var out = document.getElementById('connect-result');
     var repo = document.getElementById('repo').value.trim();
+    var publicUrl = document.getElementById('public_url').value.trim();
     if (!repo) { out.textContent = '✗ Enter owner/name.'; return; }
     out.innerHTML = '🕸️ Connecting…';
     connectBtn.disabled = true;
-    post('/api/connect', { repo: repo }, out).then(function (r) {
+    post('/api/connect', { repo: repo, public_url: publicUrl }).then(function (r) {
       connectBtn.disabled = false;
-      if (!r.ok) { out.innerHTML = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.ok)); return; }
-      out.innerHTML = '✅ Webhook created on <b>' + esc(r.j.repo) + '</b>. Open a PR to trigger a hunt.';
+      if (!r.ok) { fail(out, r); return; }
+      var hooks = 'https://github.com/' + encodeURI(r.j.repo) + '/settings/hooks';
+      out.innerHTML = (r.j.created ? '✅ Webhook created on <b>' : '✅ Already connected: <b>') + esc(r.j.repo) +
+        '</b>. Open a PR to trigger a hunt. <a href="' + esc(hooks) + '" target="_blank" rel="noreferrer">View the webhook</a>';
     }).catch(function (e) { connectBtn.disabled = false; out.textContent = '✗ ' + e.message; });
   });
 })();
