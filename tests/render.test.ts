@@ -277,9 +277,10 @@ describe("hauntingToStatus", () => {
       nitpick: 0,
     });
     expect(possessed).toEqual({
-      context: "Bug Hunter 🎃",
+      // 4-byte Unicode is stripped: GitHub rejects it in status context/description.
+      context: "Bug Hunter",
       state: "failure",
-      description: "💀 Possessed: do not merge (1 demon, 2 ghosts)",
+      description: "Possessed: do not merge (1 demon, 2 ghosts)",
     });
 
     expect(hauntingToStatus("haunted", { critical: 0, high: 1, medium: 0, low: 0, nitpick: 0 }).state).toBe(

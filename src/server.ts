@@ -87,7 +87,12 @@ function logFailure(repo: string, pr: number, err: unknown): void {
     console.warn("hunt skipped: rate limited", { repo, pr });
     return;
   }
-  console.error("hunt failed", { repo, pr, error: name });
+  // The name alone ("Error") hides the actual cause -- an LLM call that failed
+  // with "Insufficient account funds" looked identical to a template bug. Include a
+  // scrubbed, truncated message so failures are diagnosable from the logs.
+  const detail =
+    err instanceof Error && err.message ? `: ${scrubSecrets(err.message).slice(0, 200)}` : "";
+  console.error("hunt failed", { repo, pr, error: name + detail });
 }
 
 function authSecret(c: { req: { header: (n: string) => string | undefined } }): boolean {
