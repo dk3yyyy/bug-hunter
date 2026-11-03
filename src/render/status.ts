@@ -14,6 +14,21 @@ const NOUN: Record<SeverityT, [string, string]> = {
   nitpick: ["candy wrapper", "candy wrappers"],
 };
 
+/**
+ * GitHub's commit-status API rejects 4-byte (astral) Unicode in BOTH `context`
+ * and `description` with a 422 "doesn't accept 4-byte Unicode", so the pumpkin in
+ * the context and the emoji in every status line silently broke every status
+ * update. Strip them here; the Séance comment body is a different API and keeps
+ * its emoji.
+ */
+export function statusSafeText(s: string): string {
+  return s
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, "")
+    .replace(/\uFE0F/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 // Nitpicks are hidden by default, so they never appear in the status counts.
 const SUFFIX_ORDER: readonly SeverityT[] = ["critical", "high", "medium", "low"];
 
@@ -45,11 +60,15 @@ export function hauntingToStatus(
     description = `${v.haunting_levels[level].emoji} ${v.haunting_levels[level].title}`;
   }
 
+  // GitHub rejects 4-byte Unicode here too, so the level emoji has to go before
+  // the length check (the ellipsis counts toward the 140-character cap).
+  description = statusSafeText(description);
+
   // Commit-status descriptions are capped at 140 characters.
   if (description.length > 140) description = description.slice(0, 139) + "…";
 
   return {
-    context: v.status.context,
+    context: statusSafeText(v.status.context),
     // Policy: possessed (critical / possession) and haunted (high findings)
     // block the PR red; lesser hauntings stay green. Commit statuses have no
     // "neutral", so voice "neutral" maps to success with the haunted title in
@@ -62,11 +81,19 @@ export function hauntingToStatus(
 /** Pending status text from voice. */
 export function pendingStatus(): { context: string; state: "pending"; description: string } {
   const v = loadVoice();
-  return { context: v.status.context, state: "pending", description: v.status.pending };
+  return {
+    context: statusSafeText(v.status.context),
+    state: "pending",
+    description: statusSafeText(v.status.pending),
+  };
 }
 
 /** Error status text from voice: a failed hunt must never leave the PR stuck on "pending". */
 export function errorStatus(): { context: string; state: "error"; description: string } {
   const v = loadVoice();
-  return { context: v.status.context, state: "error", description: v.status.error.slice(0, 140) };
+  return {
+    context: statusSafeText(v.status.context),
+    state: "error",
+    description: statusSafeText(v.status.error).slice(0, 140),
+  };
 }
