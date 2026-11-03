@@ -12,6 +12,8 @@ Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
 
+**Contents:** [What it does](#what-it-does) · [Try it in 5 minutes](#try-it-in-5-minutes) · [Setup](#setup) · [Verify it works](#verify-it-works) · [What it is not](#what-it-is-not) · [Connecting a repo](#connecting-a-repo) · [Endpoints](#endpoints) · [How it works](#how-it-works) · [Repo rules](#repo-rules-bughuntermd) · [n8n bonus](#n8n-bonus) · [Demo](#demo) · [Contributing](#contributing) · [Development](#development) · [Docs](#docs) · [License](#license)
+
 ## See it work
 
 [![A Séance Report posted on a sample pull request](docs/sample-report.png)](https://github.com/dk3yyyy/bug-hunter/pull/34)
@@ -51,9 +53,14 @@ npm run check:models      # list valid model ids for your provider
 npm run dev               # http://localhost:3000
 ```
 
-Then open **http://localhost:3000/connect**, paste a pull request URL, enter your
-shared secret, and click **🔦 Hunt this PR**. The 🔮 Séance Report, inline comments and
-commit status land on that GitHub PR.
+Then open **http://localhost:3000/connect** and paste a pull request URL:
+
+- On a hosted instance with GitHub login configured, click **Connect with GitHub** and
+  hunt — there is no secret to copy.
+- Locally, use the shared secret field (inside **Advanced** if it is collapsed): paste
+  `N8N_SHARED_SECRET` from your `.env`.
+
+Either way the 🔮 Séance Report, inline comments and commit status land on that GitHub PR.
 
 Or from the shell:
 
@@ -91,6 +98,15 @@ Fill in `.env`:
 - `APP_URL` — optional; the URL of a hosted instance. When set, the landing's
   "Connect a repo" button points at `<APP_URL>/connect` (the GitHub Pages build
   reads the `APP_URL` repository variable).
+- `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` — optional; enable
+  **Connect with GitHub** so nobody has to paste a secret. See
+  [the login section](#connect-with-github-login-no-shared-secret).
+- `SESSION_SECRET` — seals the session cookie. Optional (derived from
+  `N8N_SHARED_SECRET` when empty), but set it explicitly in production: changing it
+  signs everyone out.
+- `ALLOWED_GITHUB_LOGINS` — optional comma-separated allowlist, e.g. `dk3yyyy`.
+  **Set this on any publicly reachable instance**, otherwise any GitHub user can sign
+  in, connect their own repo, and spend your model credits.
 
 ### Providers
 
@@ -108,6 +124,37 @@ Fill in `.env`:
 To list the valid ids for your provider, run `npm run check:models`. If the default
 `gemini-flash-latest` 404s on your account, set `GEMINI_MODEL_REVIEW` to a real id.
 
+## Verify it works
+
+Open a pull request on a connected repo, or paste a PR URL into `/connect`. A healthy
+hunt takes **60–120 seconds** and leaves three things on the pull request:
+
+1. a **`Bug Hunter` commit status** — *pending* within seconds, then *haunted* or *clear*
+2. a 🔮 **Séance Report** comment
+3. **inline comments** on the flagged lines, with suggested fixes (when there are findings)
+
+`/dashboard` lists recent hunts, and `GET /health` returns
+`{"ok":true,"queued":N,"repos":N}` — `repos` counts repos with a remembered user.
+
+From the shell, auth and liveness are two cheap checks that never spend model credits:
+
+```bash
+curl -s https://your-host/health
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://your-host/api/hunt \
+  -H 'content-type: application/json' -d '{}'    # 401 = reachable and gated correctly
+```
+
+If nothing lands on the PR, check the webhook delivery log before assuming a bug:
+
+```bash
+gh api /repos/OWNER/REPO/hooks --jq '.[].id'     # find the hook id
+gh api /repos/OWNER/REPO/hooks/<id>/deliveries \
+  --jq '.[] | "\(.delivered_at) \(.event) -> \(.status_code) \(.status)"'
+```
+
+`200 OK` means it reached the server; a timeout there means the instance was asleep —
+GitHub does not retry failed deliveries.
+
 ## What it is not
 
 - **Not an oracle.** The verifier pass removes some false alarms; it does not make the
@@ -123,6 +170,12 @@ To list the valid ids for your provider, run `npm run check:models`. If the defa
   scopes. Treat it as a collaborator with those permissions, not a read-only bot.
 - **The hosted demo sleeps.** The Render free tier stops when idle; the first request
   after a quiet period takes about a minute.
+- **State is in memory.** Hunts, the `/dashboard` history and the per-repo user
+  mappings all reset on restart or deploy. After a restart, repos fall back to the
+  server's token until they are reconnected.
+- **A hunt can outlive its HTTP request.** A real hunt takes 60–120 seconds, and a
+  proxy in front of it (Cloudflare cuts at 125s) may return `524` while the hunt still
+  finishes. Check the pull request before retrying.
 
 ## Connecting a repo
 
@@ -151,15 +204,12 @@ There are three ways to point Bug Hunter at a repository:
    the **Pull request** + **Issue comment** + **Installation** events, and a Setup URL
    of `<public-url>/summoned`.
 
-### Why the public "Connect a repo" button needs a deployment
+### Deploy it so the public button works
 
 The GitHub Pages landing is static: it can send people somewhere, but it cannot create
-a webhook or run a review. For the button to work end to end, deploy this server and
-point the landing at it:
-
-### Deploy to Render or Railway
-
-Both platforms build the repo's `Dockerfile`, and the config is committed:
+a webhook or run a review. To make the button work end to end, deploy this server and
+point the landing at it. Both hosts build the repo's `Dockerfile`, and the config is
+committed:
 
 - **Render** — `render.yaml` blueprint. Dashboard → **New → Blueprint** → pick this
   repo. It creates the service, generates `GITHUB_WEBHOOK_SECRET` and
@@ -255,6 +305,9 @@ so no one can connect a repo or spend your model credits.
 | Symptom | Cause / fix |
 |---|---|
 | `401 unauthorized` | Log in with GitHub, or send the `X-BugHunter-Secret` header equal to the server's `N8N_SHARED_SECRET` (Render generates it — see the service's Environment tab). |
+| `402 Insufficient account funds` | On OpenCode Go this usually means the **wrong base URL**, not an empty balance: the subscription is served from `/inference/go/...`, while `/inference/openai/...` is the pay-as-you-go Console balance. Bug Hunter defaults to the former — check `LLM_BASE_URL` before topping anything up. |
+| Button shows `HTTP 524` / "proxy timed out" | The hunt outlived the proxy timeout. It is still running server-side — check the PR for the report. |
+| Nothing appears on the PR at all | The instance was probably asleep when GitHub delivered the webhook, and GitHub does not retry failed deliveries. Wake it (`/health`), then re-run. |
 | `400 PUBLIC_URL not set` | No `PUBLIC_URL` and no URL in the form — paste your tunnel/deployment URL. |
 | Login bounces back with "did not match this browser" | The OAuth state cookie expired (>10 min) or cookies are blocked. Try again in one tab. |
 | Login bounces back with "rejected the login exchange" | Client ID/secret are wrong, or the redirect URI on the OAuth App doesn't match `<PUBLIC_URL>/auth/github/callback`. |
@@ -275,8 +328,9 @@ so no one can connect a repo or spend your model credits.
 | GET | `/logout` | none | clear the session cookie |
 | GET | `/api/me` | session | who is signed in (JSON) |
 | GET | `/summon` | none | redirect to the GitHub App install page (app mode) or `/connect` |
+| GET | `/summoned` | none | post-install page (app mode): which repos are connected |
 | GET | `/dashboard` | none | recent hunts (in-memory) |
-| GET | `/health` | none | liveness |
+| GET | `/health` | none | liveness: `{ ok, queued, repos }` — `repos` = remembered per-repo users |
 | POST | `/webhooks/github` | webhook signature | GitHub PR / issue-comment / installation events |
 | POST | `/api/hunt` | session or `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
 | POST | `/api/connect` | session or `X-BugHunter-Secret` | create/reuse a repo webhook: `{ "repo", "public_url"? }` (or `PUBLIC_URL`) |
@@ -329,6 +383,20 @@ for haunted/possessed PRs — with error handling that logs failures to a separa
 See [`demo/README.md`](demo/README.md) for the haunted-candy-shop demo repo (five planted
 bugs plus a hidden possession attempt), and [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)
 for the 2-minute demo script.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR:
+
+```bash
+npm install
+npm run typecheck && npm test     # CI runs both on every push and PR
+```
+
+- Keep the Halloween wording in [`prompts/voice.json`](prompts/voice.json) — the report
+  copy is data, not code.
+- Behaviour changes need a test. The suite is unit + in-process integration, no network.
+- Touch `src/render/landing.html` and CI also rebuilds the GitHub Pages site.
 
 ## Development
 
