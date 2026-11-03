@@ -44,10 +44,13 @@ describe("resolveModelConfig", () => {
     );
   });
 
-  it("uses OpenCode Go's default base URL", () => {
-    expect(
-      resolveModelConfig({ ...base, LLM_PROVIDER: "opencode", LLM_BASE_URL: "" }, "review").baseUrl,
-    ).toBe("https://opencode.ai/inference/openai/v1");
+  it("uses OpenCode Go's subscription endpoint, not the pay-as-you-go one", () => {
+    // /inference/openai/v1 is the Console balance and returns 402 Insufficient
+    // account funds for a Go subscriber; the subscription lives under /go/.
+    const url = resolveModelConfig({ ...base, LLM_PROVIDER: "opencode", LLM_BASE_URL: "" }, "review")
+      .baseUrl;
+    expect(url).toBe("https://opencode.ai/inference/go/openai/v1");
+    expect(url).toContain("/inference/go/");
   });
 
   it("uses DeepSeek's default base URL", () => {
