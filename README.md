@@ -1,3 +1,6 @@
+[![CI](https://github.com/dk3yyyy/bug-hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/dk3yyyy/bug-hunter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-15171a.svg)](LICENSE)
+
 # Bug Hunter 🎃
 
 > *"Every PR is haunted. Bug Hunter finds the spirits before they reach production."*
@@ -8,6 +11,19 @@ OpenCode Go, DeepSeek, and any OpenAI-compatible model) — then posts a themed 
 Report with fixes.
 
 Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
+
+## See it work
+
+[![A Séance Report posted on a sample pull request](docs/sample-report.png)](https://github.com/dk3yyyy/bug-hunter/pull/34)
+
+[PR #34](https://github.com/dk3yyyy/bug-hunter/pull/34) is a permanent demo fixture: one
+file with two real bugs and one injected instruction. The report, the inline comment on
+line 20 and the commit status on that PR are Bug Hunter's own output — including the
+injected instruction, which the verifier noticed and then **exorcised** as a false alarm
+because a non-executable comment in a demo file is not a finding.
+
+The [hosted demo](https://bug-hunter-ty2y.onrender.com) runs on a free tier, so the first
+request after a quiet period can take about a minute. Running it yourself takes five.
 
 ![Bug Hunter landing page](docs/landing.png)
 
@@ -91,6 +107,22 @@ Fill in `.env`:
 
 To list the valid ids for your provider, run `npm run check:models`. If the default
 `gemini-flash-latest` 404s on your account, set `GEMINI_MODEL_REVIEW` to a real id.
+
+## What it is not
+
+- **Not an oracle.** The verifier pass removes some false alarms; it does not make the
+  remaining findings true. The confidence number is the model's own estimate, not a
+  calibrated probability.
+- **No precision or recall claim.** There is no labelled corpus of real pull requests
+  behind this, so there is no honest accuracy figure to publish. The sample PR shows
+  behaviour, not performance.
+- **Cost and latency scale with the diff.** Every hunt is at least two model calls
+  (review, then verify). Large diffs are trimmed by a budget before they reach the model,
+  and `MAX_FINDINGS` caps the report.
+- **It writes to your pull request.** It needs pull-request, issue and commit-status write
+  scopes. Treat it as a collaborator with those permissions, not a read-only bot.
+- **The hosted demo sleeps.** The Render free tier stops when idle; the first request
+  after a quiet period takes about a minute.
 
 ## Connecting a repo
 
