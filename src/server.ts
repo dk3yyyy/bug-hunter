@@ -36,7 +36,7 @@ import { BoundedSet, HuntRateLimiter, planBudget, trimContext } from "./hunt/bud
 import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
-import { errorStatus, hauntingToStatus, pendingStatus } from "./render/status";
+import { errorStatus, hauntingToStatus, nothingToHuntStatus, pendingStatus } from "./render/status";
 import { renderLanding, renderDashboard, renderSummoned, renderConnect } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
@@ -356,6 +356,56 @@ async function runHuntForPrInner(
   }
 }
 
+/**
+ * Post an honest "nothing to hunt" result instead of a fabricated all-clear.
+ * No model call, no findings, and a status that says why rather than implying the
+ * diff passed review.
+ */
+async function nothingToHunt(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  pr: Awaited<ReturnType<typeof api.getPr>>,
+  skipped: Array<{ path: string; reason: string }>,
+): Promise<HuntRecord> {
+  const byReason = new Map<string, number>();
+  for (const s of skipped) byReason.set(s.reason, (byReason.get(s.reason) ?? 0) + 1);
+  const summary =
+    [...byReason.entries()].map(([reason, n]) => `${n} × ${reason}`).join(", ") || "no files changed";
+
+  await api.upsertSeance(
+    octokit,
+    owner,
+    repo,
+    prNumber,
+    scrubSecrets(
+      `## Nothing to hunt\n\nThis PR has **no reviewable files**, so no review was run. ` +
+        `Skipped: ${summary}.\n\nIf this looks wrong, check that the changes are not all ` +
+        "lockfiles, generated or vendored code, binaries, or pure renames — those are skipped by design.",
+    ),
+  );
+  await api.setCommitStatus(octokit, owner, repo, pr.headSha, nothingToHuntStatus());
+
+  const zero = { critical: 0, high: 0, medium: 0, low: 0, nitpick: 0 };
+  const record: HuntRecord = {
+    id: `h_${Math.random().toString(36).slice(2, 10)}`,
+    repo: `${owner}/${repo}`,
+    prNumber,
+    prTitle: pr.title,
+    prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+    hauntingLevel: "clear",
+    counts: zero,
+    possessionAttempt: false,
+    exorcised: 0,
+    keptCount: 0,
+    topFindings: [],
+    finishedAt: new Date().toISOString(),
+  };
+  hunts.set(record.id, record);
+  return record;
+}
+
 async function huntOpenPr(
   octokit: Awaited<ReturnType<typeof getOctokit>>,
   owner: string,
@@ -369,7 +419,14 @@ async function huntOpenPr(
   // Only hunted files reach the model: lockfiles, generated, vendored, minified,
   // binary and over-limit files are filtered out here (SPEC §11 step 2). The
   // pipeline still receives every file so it can list skips in the Graveyard.
-  const { kept: huntedFiles } = filterFiles(files);
+  const { kept: huntedFiles, skipped: skippedFiles } = filterFiles(files);
+
+  // Nothing reviewable (lockfile-only, generated, binary, pure rename, >40 files all
+  // filtered). Running the model here would burn calls and then post a green
+  // "All clear — the hunter searched every changed line" over a PR it never read.
+  if (huntedFiles.length === 0) {
+    return nothingToHunt(octokit, owner, repo, prNumber, pr, skippedFiles);
+  }
 
   // Input budget (~30k tokens, SPEC §11 step 5): the diff gets priority,
   // context is trimmed to whatever is left.
