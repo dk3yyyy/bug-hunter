@@ -37,7 +37,11 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
   if (missing.size > 0) {
     throw new Error(`missing template vars: ${[...missing].join(", ")}`);
   }
-  const leftover = out.match(/\{\{[^}]+\}\}/);
+  // Check the TEMPLATE, never the filled output: interpolated data legitimately
+  // contains braces. A PR whose diff includes GitHub Actions (${{ secrets.X }}),
+  // Handlebars, Jinja or Go template syntax must not abort the hunt -- and this
+  // repo's own prompts/*.md are full of {{placeholders}}.
+  const leftover = template.replace(/\{\{\w+\}\}/g, "").match(/\{\{[^}]+\}\}/);
   if (leftover) {
     throw new Error(`unfilled placeholder in prompt: ${leftover[0]}`);
   }
