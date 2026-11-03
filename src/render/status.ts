@@ -97,3 +97,21 @@ export function errorStatus(): { context: string; state: "error"; description: s
     description: statusSafeText(v.status.error).slice(0, 140),
   };
 }
+
+/**
+ * Used when a PR contains no reviewable files (lockfile-only, generated, binary,
+ * pure rename). Deliberately NOT the "all clear" copy: claiming the hunter
+ * "searched every changed line" when it searched none is a false negative.
+ */
+export function nothingToHuntStatus(): {
+  context: string;
+  state: "success";
+  description: string;
+} {
+  const v = loadVoice();
+  return {
+    context: statusSafeText(v.status.context),
+    state: "success",
+    description: "Nothing to hunt: no reviewable files",
+  };
+}

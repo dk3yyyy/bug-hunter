@@ -3,7 +3,13 @@
 // astral emoji (🎃 in the context, 🔦 pending, 💀 in a level title), so every
 // status update failed silently — setCommitStatus swallows the error.
 import { describe, expect, it } from "vitest";
-import { errorStatus, hauntingToStatus, pendingStatus, statusSafeText } from "../src/render/status";
+import {
+  errorStatus,
+  hauntingToStatus,
+  nothingToHuntStatus,
+  pendingStatus,
+  statusSafeText,
+} from "../src/render/status";
 
 /** Any code point above the BMP is rejected by GitHub. */
 const ASTRAL = /[\u{10000}-\u{10FFFF}]/u;
@@ -62,5 +68,23 @@ describe("commit statuses are API-safe", () => {
   it("uses a stable ASCII context so the same check stays grouped", () => {
     expect(hauntingToStatus("clear", zeroCounts).context).toBe(pendingStatus().context);
     expect(hauntingToStatus("clear", zeroCounts).context).toBe("Bug Hunter");
+  });
+});
+
+describe("nothingToHuntStatus", () => {
+  it("does not claim a clean review", () => {
+    const s = nothingToHuntStatus();
+    // The words that made the old behaviour a false negative.
+    expect(s.description.toLowerCase()).not.toContain("all clear");
+    expect(s.description.toLowerCase()).not.toContain("no spirits");
+    expect(s.description).toMatch(/nothing to hunt/i);
+    expect(s.state).toBe("success");
+  });
+
+  it("is API-safe like every other status", () => {
+    const s = nothingToHuntStatus();
+    expect(ASTRAL.test(s.context)).toBe(false);
+    expect(ASTRAL.test(s.description)).toBe(false);
+    expect(s.description.length).toBeLessThanOrEqual(140);
   });
 });
