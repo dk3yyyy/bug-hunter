@@ -55,7 +55,12 @@ export function resolveModelConfig(
       provider: "opencode",
       model,
       apiKey: e.LLM_API_KEY,
-      baseUrl: e.LLM_BASE_URL || "https://opencode.ai/inference/openai/v1",
+      // OpenCode Go (the subscription) is served from /inference/go/..., NOT
+      // /inference/openai/... — that base URL is the pay-as-you-go Console balance,
+      // so a Go subscriber using it gets 402 "Insufficient account funds" while
+      // their subscription sits unused. Override with LLM_BASE_URL for the Console
+      // API. https://opencode.ai/docs/go/
+      baseUrl: e.LLM_BASE_URL || "https://opencode.ai/inference/go/openai/v1",
     };
   }
   if (e.LLM_PROVIDER === "deepseek") {

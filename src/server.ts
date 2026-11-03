@@ -1,7 +1,7 @@
 // Bug Hunter server — Hono app, webhook ingress, manual trigger, in-process queue.
 // (SPEC §4, §8, §11, §16.4)
 import { serve } from "@hono/node-server";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Octokit } from "@octokit/rest";
@@ -440,13 +440,31 @@ async function huntOpenPr(
 
   const prompts = PROMPTS;
 
+  // One conversation id for the whole hunt: OpenCode Go requires it and uses it to
+  // route and cache across the review/verify/seance passes.
+  const sessionId = `bh-${randomUUID()}`;
   const deps: HuntDeps = {
     review: ({ system, user }) =>
-      generateStructured({ model: getModel("review"), schema: ReviewOutput, system, prompt: user }),
+      generateStructured({
+        model: getModel("review", { sessionId }),
+        schema: ReviewOutput,
+        system,
+        prompt: user,
+      }),
     verify: ({ system, user }) =>
-      generateStructured({ model: getModel("verify"), schema: Verdict, system, prompt: user }),
+      generateStructured({
+        model: getModel("verify", { sessionId }),
+        schema: Verdict,
+        system,
+        prompt: user,
+      }),
     seance: ({ system, user }) =>
-      generateStructured({ model: getModel("fast"), schema: SeanceOutput, system, prompt: user }),
+      generateStructured({
+        model: getModel("fast", { sessionId }),
+        schema: SeanceOutput,
+        system,
+        prompt: user,
+      }),
   };
 
   const result = await runHunt(
