@@ -16,6 +16,7 @@ import {
   OAUTH_SCOPES,
 } from "./auth";
 import { openSession, sealSession, SESSION_TTL_MS, type Session } from "./session";
+import { recallRepoConnection, rememberRepoConnection, repoConnectionCount } from "./tenancy";
 import { getOctokit } from "./github/client";
 import { installUrl, addRepo, removeRepo, listRepos, connectUrlFor, installationIdForRepo } from "./github/app";
 import { webhookUrlFor } from "./connect";
@@ -186,6 +187,42 @@ function oauthCfg() {
 }
 
 /** Refresh slightly before real expiry so a request never races the deadline. */
+/** Refresh a stored per-repo token shortly before it expires, re-sealing it. */
+const REPO_REFRESH_SKEW_MS = 60_000;
+
+/**
+ * The token to act as for this repo: the user who connected it, when we still have
+ * their (refreshable) token. Null means fall back to the server token — correct for
+ * the operator's own repo, and the graceful path for mappings lost on restart.
+ */
+async function huntTokenFor(repo: string): Promise<string | null> {
+  if (env.GITHUB_MODE === "app") return null; // App mode uses installation tokens.
+  const conn = recallRepoConnection(repo, sessionKey());
+  if (!conn) return null;
+
+  const expiring = typeof conn.expiresAt === "number";
+  if (!expiring || conn.expiresAt! - Date.now() > REPO_REFRESH_SKEW_MS) return conn.token;
+  if (!conn.refreshToken || !oauthEnabled()) return conn.token;
+
+  const refreshed = await refreshAccessToken(oauthCfg(), conn.refreshToken);
+  if (!refreshed.ok) {
+    console.error("repo token refresh failed:", refreshed.reason);
+    return conn.token;
+  }
+  const next = {
+    login: conn.login,
+    token: refreshed.accessToken,
+    ...(refreshed.expiresIn ? { expiresAt: Date.now() + refreshed.expiresIn * 1000 } : {}),
+    ...(refreshed.refreshToken
+      ? { refreshToken: refreshed.refreshToken }
+      : conn.refreshToken
+        ? { refreshToken: conn.refreshToken }
+        : {}),
+  };
+  rememberRepoConnection(repo, next, sessionKey());
+  return next.token;
+}
+
 const REFRESH_SKEW_MS = 60_000;
 
 /**
@@ -306,6 +343,8 @@ async function runHuntForPr(
   prNumber: number,
   expectedHeadSha?: string,
   installationId?: number,
+  /** Token of the user who connected this repo; null/undefined = server token. */
+  userToken?: string | null,
 ): Promise<HuntRecord | null> {
   // Per-PR mutual exclusion: a debounced synchronize hunt and a manual @bot
   // hunt must not run concurrently (duplicate inline comments + double spend).
@@ -313,7 +352,14 @@ async function runHuntForPr(
   if (runningHunts.has(huntKey)) return null;
   runningHunts.add(huntKey);
   try {
-    return await runHuntForPrInner(owner, repo, prNumber, expectedHeadSha, installationId);
+    return await runHuntForPrInner(
+      owner,
+      repo,
+      prNumber,
+      expectedHeadSha,
+      installationId,
+      userToken,
+    );
   } finally {
     runningHunts.delete(huntKey);
   }
@@ -325,8 +371,12 @@ async function runHuntForPrInner(
   prNumber: number,
   expectedHeadSha?: string,
   installationId?: number,
+  userToken?: string | null,
 ): Promise<HuntRecord | null> {
-  const octokit = await getOctokit(installationId);
+  // Act as the user who connected this repo when we know them, so the review is
+  // attributed to them and constrained by their own permissions. Falls back to the
+  // server token (operator's own repo, App mode, or a mapping lost on restart).
+  const octokit = userToken ? new Octokit({ auth: userToken }) : await getOctokit(installationId);
 
   // Re-fetch current state; drop closed/draft/stale before spending.
   const pr = await api.getPr(octokit, owner, repo, prNumber);
@@ -622,17 +672,21 @@ webhooks.on(
 
     const prKey = `${target.owner}/${target.repo}#${target.prNumber}`;
     const run = () =>
-      void queue.add(() =>
-        runHuntForPr(
+      void queue.add(async () => {
+        // Resolve the connector's token here (not earlier) so a refresh inside the
+        // queue still applies to this hunt.
+        const userToken = await huntTokenFor(`${target.owner}/${target.repo}`);
+        return runHuntForPr(
           target.owner,
           target.repo,
           target.prNumber,
           target.headSha,
           target.installationId,
+          userToken,
         ).catch((e) =>
           logFailure(`${target.owner}/${target.repo}`, target.prNumber, e),
-        ),
-      );
+        );
+      });
 
     if (p.action === "synchronize") {
       const prev = debounceTimers.get(prKey);
@@ -676,7 +730,10 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
   const pr = p.issue.number;
   const installationId = p.installation?.id;
 
-  const octokit = await getOctokit(installationId);
+  const userToken = await huntTokenFor(`${owner}/${repo}`);
+  const octokit = userToken
+    ? new Octokit({ auth: userToken })
+    : await getOctokit(installationId);
   if (p.comment?.id) await api.addReaction(octokit, owner, repo, p.comment.id, "eyes");
 
   if (cmd.kind === "hunt" || cmd.kind === "seance") {
@@ -688,7 +745,7 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
     commandCooldown.set(key, Date.now());
     if (commandCooldown.size > 1000) commandCooldown.clear();
     void queue.add(() =>
-      runHuntForPr(owner, repo, pr, undefined, installationId).catch((e) =>
+      runHuntForPr(owner, repo, pr, undefined, installationId, userToken).catch((e) =>
         logFailure(`${owner}/${repo}`, pr, e),
       ),
     );
@@ -871,7 +928,11 @@ app.get("/summon", (c) => {
   return c.redirect("/connect");
 });
 
-app.get("/health", (c) => c.json({ ok: true, queued: queue.size }));
+app.get("/health", (c) =>
+  // `repos` = how many repos have a remembered user (0 after a restart, since
+  // there is no database — those repos fall back to the server token).
+  c.json({ ok: true, queued: queue.size, repos: repoConnectionCount() }),
+);
 
 app.post("/webhooks/github", async (c) => {
   const raw = await c.req.text();
@@ -941,8 +1002,21 @@ app.post("/api/hunt", async (c) => {
     }
   }
 
+  // A signed-in user hunts as themselves; scripts with the shared secret use the
+  // server token as before.
+  const session = currentSession(c);
+  const userToken =
+    env.GITHUB_MODE === "pat" && session ? await tokenForSession(c, session) : null;
+
   try {
-    const record = await runHuntForPr(owner, repo, prNumber, undefined, installationId);
+    const record = await runHuntForPr(
+      owner,
+      repo,
+      prNumber,
+      undefined,
+      installationId,
+      userToken,
+    );
     if (!record) {
       // runHuntForPr returns null for two very different reasons. Telling someone
       // their PR is "closed, draft, not found, OR already running" is unactionable;
@@ -1037,13 +1111,32 @@ app.post("/api/connect", async (c) => {
 
   const webhookUrl = target.url;
   try {
+    const connectSession = currentSession(c);
+    const connectToken =
+      env.GITHUB_MODE === "pat" && connectSession
+        ? await tokenForSession(c, connectSession)
+        : null;
     const hook = await api.ensureRepoWebhook(
-      session ? new Octokit({ auth: await tokenForSession(c, session) }) : await getOctokit(),
+      connectToken ? new Octokit({ auth: connectToken }) : await getOctokit(),
       owner,
       repo,
       webhookUrl,
       env.GITHUB_WEBHOOK_SECRET,
     );
+    // Remember who authorised this repo so its hunts run as them, not as the
+    // operator. Lost on restart (in-memory), which falls back to the server token.
+    if (connectSession && connectToken) {
+      rememberRepoConnection(
+        full,
+        {
+          login: connectSession.login,
+          token: connectToken,
+          ...(connectSession.expiresAt ? { expiresAt: connectSession.expiresAt } : {}),
+          ...(connectSession.refreshToken ? { refreshToken: connectSession.refreshToken } : {}),
+        },
+        sessionKey(),
+      );
+    }
     return c.json({
       ok: true,
       repo: full,

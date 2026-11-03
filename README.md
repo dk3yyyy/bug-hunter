@@ -229,6 +229,27 @@ restrict who may sign in at all.
 The shared secret keeps working for scripts and n8n regardless. If OAuth is not
 configured, nothing changes: the login button is hidden and the form works as before.
 
+### Who a hunt acts as
+
+When someone connects a repo, Bug Hunter remembers **which user** authorised it and
+runs that repo's hunts with **their** token. So a third party who connects their own
+repo sees reviews posted by their own account, constrained by their permissions —
+not by the operator's.
+
+`GET /health` reports `repos` (how many repos have a remembered user).
+
+Two honest limitations, because there is no database:
+
+- The mapping lives in process memory. **A deploy or restart clears it**, and those
+  repos fall back to the server's `GITHUB_TOKEN` until the user connects again.
+  After a restart, reconnect from `/connect` if you want attribution to stay correct.
+- Repos connected before this existed (or authorised through the shared secret) have
+  no mapping and always use the server token.
+
+If you would rather nobody but you can use the instance at all, set
+`ALLOWED_GITHUB_LOGINS=your-login`: the login callback then refuses everyone else,
+so no one can connect a repo or spend your model credits.
+
 ### Connect troubleshooting
 
 | Symptom | Cause / fix |
