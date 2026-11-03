@@ -229,6 +229,43 @@ async function tokenForSession(c: Context, session: Session): Promise<string> {
   return next.token;
 }
 
+/**
+ * Turn a hunt exception into something a user can act on. The raw message usually
+ * carries the real cause (provider credit, auth, network), so it is scrubbed of
+ * secrets and truncated rather than replaced by the error's name.
+ */
+export function huntErrorDetail(e: unknown): { message: string; code: string; hint?: string } {
+  const code = e instanceof Error ? e.name : "UnknownError";
+  const raw = e instanceof Error ? e.message : "";
+  const message = scrubSecrets(raw).replace(/\s+/g, " ").trim().slice(0, 400);
+
+  if (/insufficient (account )?funds|quota|billing|payment required/i.test(message)) {
+    return {
+      message: message || "The model provider rejected the request.",
+      code,
+      hint: "The model provider account is out of credit or over quota. Top it up, or set a different LLM_PROVIDER/key.",
+    };
+  }
+  if (/unauthorized|bad credentials|401/i.test(message)) {
+    return {
+      message: message || "GitHub rejected the token.",
+      code,
+      hint: "GITHUB_TOKEN is missing, expired, or missing scopes (repo, repo:status, admin:repo_hook).",
+    };
+  }
+  if (/rate limit|secondary rate/i.test(message)) {
+    return { message, code, hint: "GitHub rate limit — retry in a minute." };
+  }
+  if (/fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|socket hang up/i.test(message)) {
+    return { message, code, hint: "Could not reach an upstream service. Check the server logs." };
+  }
+  return {
+    message: message || `The hunt failed (${code}) without an error message.`,
+    code,
+    hint: "Check the server logs for the full trace.",
+  };
+}
+
 function githubStatus(e: unknown): number | undefined {
   const status = (e as { status?: unknown } | null)?.status;
   return typeof status === "number" ? status : undefined;
@@ -777,7 +814,20 @@ app.post("/webhooks/github", async (c) => {
 // Manual trigger (SPEC §16.4 Workflow 3 + instant testing): POST /api/hunt
 //   { "pr_url": "https://github.com/o/r/pull/N" } or { "owner", "repo", "pr" }
 app.post("/api/hunt", async (c) => {
-  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!isAuthorized(c)) {
+    return c.json(
+      {
+        error: oauthEnabled()
+          ? "Sign in with GitHub first, then hunt."
+          : "unauthorized — send the X-BugHunter-Secret header",
+        login_url: oauthEnabled() ? "/auth/github" : null,
+        hint: oauthEnabled()
+          ? "The button uses your GitHub session; sign in once and it works."
+          : undefined,
+      },
+      401,
+    );
+  }
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== "object") return c.json({ error: "bad body" }, 400);
 
@@ -818,15 +868,40 @@ app.post("/api/hunt", async (c) => {
 
   try {
     const record = await runHuntForPr(owner, repo, prNumber, undefined, installationId);
-    if (!record)
-      return c.json({ error: "PR is closed, draft, not found, or a hunt is already running" }, 404);
+    if (!record) {
+      // runHuntForPr returns null for two very different reasons. Telling someone
+      // their PR is "closed, draft, not found, OR already running" is unactionable;
+      // say which one it is.
+      if (runningHunts.has(`${owner}/${repo}#${prNumber}`)) {
+        return c.json(
+          {
+            error: `A hunt is already running for ${owner}/${repo}#${prNumber}. Wait for it to finish — the result is posted on the PR.`,
+            code: "HUNT_IN_PROGRESS",
+          },
+          409,
+        );
+      }
+      return c.json(
+        {
+          error: `Could not hunt ${owner}/${repo}#${prNumber}: the PR is closed, is a draft, or ${env.GITHUB_MODE === "app" ? "the GitHub App is not installed on it" : "the token cannot see it"}.`,
+          code: "PR_NOT_HUNTABLE",
+        },
+        404,
+      );
+    }
     return c.json(record);
   } catch (e) {
     if (e instanceof HuntRateLimitedError) {
-      return c.json({ error: "rate limited: max 10 hunts per PR per hour" }, 429);
+      return c.json(
+        { error: "Rate limited: max 10 hunts per PR per hour.", code: "RATE_LIMITED" },
+        429,
+      );
     }
     logFailure(`${owner}/${repo}`, prNumber, e);
-    return c.json({ error: e instanceof Error ? e.name : "hunt failed" }, 500);
+    // Return the actual, scrubbed cause. "{"error":"Error"}" told the user nothing
+    // and hid things like "Insufficient account funds" from the model provider.
+    const detail = huntErrorDetail(e);
+    return c.json({ error: detail.message, code: detail.code, hint: detail.hint }, 500);
   }
 });
 

@@ -253,6 +253,9 @@ ${connectSection}
   function fail(out, r) {
     var msg = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.status));
     if (r.j && r.j.login_url) msg += ' <a href="' + esc(r.j.login_url) + '">Sign in with GitHub</a>';
+    // The server sends an actionable hint alongside the message (provider credit,
+    // token scopes, rate limit). Show it rather than making people guess.
+    if (r.j && r.j.hint) msg += '<br><span class="hint">' + esc(r.j.hint) + '</span>';
     out.innerHTML = msg;
   }
 
