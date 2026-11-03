@@ -250,8 +250,19 @@ ${connectSection}
       return { ok: r.ok, status: r.status, j: j };
     });
   }
+  // Proxy/edge failures never reach our JSON handler, so explain those by status.
+  function statusHint(status) {
+    if (status === 502 || status === 504 || status === 524) {
+      return 'The proxy timed out. The hunt may still finish - check the pull request for the report before retrying.';
+    }
+    if (status === 429) return 'This PR hit its hourly hunt limit. Try again later.';
+    if (status === 0) return 'No response from the server.';
+    return '';
+  }
   function fail(out, r) {
     var msg = '<b>✗</b> ' + esc(r.j.error || ('HTTP ' + r.status));
+    var sh = statusHint(r.status);
+    if (sh) msg += '<br><span class="hint">' + esc(sh) + '</span>';
     if (r.j && r.j.login_url) msg += ' <a href="' + esc(r.j.login_url) + '">Sign in with GitHub</a>';
     // The server sends an actionable hint alongside the message (provider credit,
     // token scopes, rate limit). Show it rather than making people guess.

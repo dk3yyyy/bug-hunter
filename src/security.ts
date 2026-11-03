@@ -8,7 +8,10 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/sk-or-[A-Za-z0-9_-]{10,}/g, "[redacted]"], // OpenRouter API key
   [/sk-live-[A-Za-z0-9_-]{10,}/g, "[redacted]"], // Stripe secret key
   [/rk-live-[A-Za-z0-9_-]{10,}/g, "[redacted]"], // Stripe restricted key
+  [/oc_sk_[A-Za-z0-9_-]{10,}/g, "[redacted]"], // OpenCode Go key (oc_sk_...)
   [/sk-[A-Za-z0-9]{20,}/g, "[redacted]"], // OpenAI-style key
+  [/\bBearer\s+[A-Za-z0-9._~+/-]{10,}=*/gi, "Bearer [redacted]"], // Authorization headers
+  [/\b(AKIA)[0-9A-Z]{16}\b/g, "$1[redacted]"], // AWS key id, keep the prefix readable
   [/xox[bpas]-[A-Za-z0-9-]{10,}/g, "[redacted]"], // Slack tokens
   [/npm_[A-Za-z0-9]{20,}/g, "[redacted]"], // npm access tokens
   [/AKIA[0-9A-Z]{16}/g, "[redacted]"], // AWS access key id

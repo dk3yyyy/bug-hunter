@@ -45,6 +45,23 @@ describe("scrubSecrets", () => {
     expect(out).not.toContain("supersecretvalue123");
   });
 
+  it("redacts OpenCode Go keys (oc_sk_...)", () => {
+    // The real format is oc_sk_<long token>; the generic sk- rule needs a hyphen
+    // and misses it, which mattered once provider error text was returned to
+    // browsers and posted to GitHub.
+    const key = "oc_sk_" + "abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+    const out = scrubSecrets(`provider said: invalid key ${key} for this request`);
+    expect(out).not.toContain("oc_sk_");
+    expect(out).not.toContain("abcdefghijklmnopqrstuvwxyz0123456789ABCD");
+    expect(out).toContain("[redacted]");
+  });
+
+  it("redacts Bearer tokens in authorization headers", () => {
+    const out = scrubSecrets("Authorization: Bearer abcdef123456ghi789jkl");
+    expect(out).not.toContain("abcdef123456ghi789jkl");
+    expect(out).toContain("Bearer [redacted]");
+  });
+
   it("leaves normal text alone", () => {
     const text = "const x = 1; // a normal comment about keys";
     expect(scrubSecrets(text)).toBe(text);

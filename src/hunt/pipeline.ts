@@ -14,6 +14,13 @@ import { candidatesJson, withIds } from "./review";
 import { sanitizeText } from "./sanitize";
 import { emptySeance } from "./summary";
 import { applyVerdict } from "./verify";
+import { scrubSecrets } from "../security";
+
+/** One-line, secret-free rendering of an error for logs. */
+function abbrevError(e: unknown): string {
+  const raw = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  return scrubSecrets(raw).replace(/\s+/g, " ").trim().slice(0, 200);
+}
 
 /** Replace `{{key}}` placeholders with values from `vars`.
  * Throws when a key is missing or any {{...}} survives — never send
@@ -161,9 +168,12 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     let verdict: VerdictT;
     try {
       verdict = await deps.verify({ system: "", user: verifyPrompt });
-    } catch {
+    } catch (e) {
+      // Keep the hunt alive, but never swallow the cause silently: an unverified
+      // report with no log entry is indistinguishable from a clean pass.
       verifierFailed = true;
       verdict = { results: [] };
+      console.warn("verifier pass failed:", abbrevError(e));
     }
     // applyVerdict keeps candidates with no verdict at their original confidence
     // and fix_ok = false, which is exactly the unverified fallback.
@@ -258,8 +268,9 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
       repo_rules: input.repoRules,
     });
     summary = await deps.seance({ system: "", user: seancePrompt });
-  } catch {
+  } catch (e) {
     // Visible degradation: never render a silently blank summary section.
+    console.warn("séance pass failed:", abbrevError(e));
     summary = emptySeance();
     summary.summary = "Summary unavailable — the séance pass failed, but the hunt above continued.";
     notes.push("SUMMARY UNAVAILABLE: the seance model call failed; findings above are unaffected.");
