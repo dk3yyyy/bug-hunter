@@ -247,7 +247,18 @@
     .glow { animation: none; }
     .spirit, .report, .out, .pipe li, .creature, .creature .glyph, .meter li, .meter .glyph { transition: none; }
     .creature.on .glyph { transform: none; }
+    .js .reveal { opacity: 1; transform: none; transition: none; }
+    .hero .pr { animation: none; }
   }
+  /* motion layer: scroll reveals + a slow hero drift */
+  .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity .65s var(--ease), transform .65s var(--ease); will-change: opacity, transform; }
+  .js .reveal.in { opacity: 1; transform: none; }
+  .hero .pr { animation: drift 10s ease-in-out infinite; }
+  @keyframes drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+  .btn, .btn-ghost, .link, button, .creature { transition: transform .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease), background-color .18s var(--ease), filter .18s var(--ease); }
+  .creature:hover { transform: translateY(-3px); }
+  .link:hover, .nav a:hover { text-decoration-thickness: 2px; }
+
   @media (max-width: 640px) {
     h1, h2, h3 { text-transform: none; letter-spacing: -0.02em; }
     .hero h1 { font-size: clamp(1.9rem, 7.4vw, 2.3rem); }
@@ -511,6 +522,23 @@
 <script>
 (function () {
   document.documentElement.classList.add('js');
+
+  /* ---- motion: stagger section reveals as they enter; falls back to visible ---- */
+  (function () {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var els = Array.prototype.slice.call(
+      document.querySelectorAll('main section, .item, .pipe li, .creature, .stat, .out, .steps li')
+    );
+    if (!els.length) return;
+    els.forEach(function (el, i) { el.classList.add('reveal'); el.style.transitionDelay = (i % 4) * 70 + 'ms'; });
+    if (!('IntersectionObserver' in window)) { els.forEach(function (el) { el.classList.add('in'); }); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    els.forEach(function (el) { io.observe(el); });
+  })();
 
   /* ---- bestiary: the worst thing on the PR sets its haunting level (same rule as the server) ---- */
   var LEVELS = {
