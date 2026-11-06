@@ -166,7 +166,29 @@ export async function listExistingFingerprints(
   repo: string,
   pr: number,
 ): Promise<Set<string>> {
-  const out = new Set<string>();
+  return (await listExistingInline(octokit, owner, repo, pr)).fingerprints;
+}
+
+export interface ExistingInline {
+  /** sha1 fingerprints from `<!-- bughunter:f=… -->` markers. */
+  fingerprints: Set<string>;
+  /** file path → the current-bot-comment line numbers on it. */
+  positions: Map<string, number[]>;
+}
+
+/**
+ * Every bot inline comment already on the PR: both its fingerprint and the
+ * path/line it sits on. Re-runs dedupe on both (fp exact, line within ±1), so a
+ * re-worded or slightly re-anchored finding can't post a second comment.
+ */
+export async function listExistingInline(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pr: number,
+): Promise<ExistingInline> {
+  const fingerprints = new Set<string>();
+  const positions = new Map<string, number[]>();
   const iterator = octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, {
     owner,
     repo,
@@ -176,10 +198,29 @@ export async function listExistingFingerprints(
   for await (const page of iterator) {
     for (const c of page.data) {
       if (typeof c.body !== "string") continue;
-      for (const m of c.body.matchAll(FINDING_MARKER)) out.add(m[1]);
+      const ours = c.body.includes("bughunter:f=");
+      if (!ours) continue;
+      for (const m of c.body.matchAll(FINDING_MARKER)) fingerprints.add(m[1]);
+      // Only comments still attached to the current diff can block a line.
+      if (c.path && typeof c.line === "number") {
+        const lines = positions.get(c.path) ?? [];
+        lines.push(c.line);
+        positions.set(c.path, lines);
+      }
     }
   }
-  return out;
+  return { fingerprints, positions };
+}
+
+/** True when this file already carries a bot comment within ±1 line. */
+export function hasNearbyComment(
+  positions: Map<string, number[]>,
+  file: string,
+  line: number,
+): boolean {
+  const lines = positions.get(file);
+  if (!lines) return false;
+  return lines.some((l) => Math.abs(l - line) <= 1);
 }
 
 /** Create a repo webhook pointing at this server (Option B auto-connect). */

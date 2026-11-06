@@ -562,10 +562,18 @@ async function huntOpenPr(
     ),
   );
 
-  // Inline comments (Step 3): kept findings are all anchored; fingerprint-deduped.
+  // Inline comments (Step 3): kept findings are all anchored; deduped against
+  // both the fingerprint AND the path:line already commented, so a re-worded
+  // finding on the same line can't post a second comment on a re-run.
   try {
-    const existing = await api.listExistingFingerprints(octokit, owner, repo, prNumber);
-    const fresh = result.kept.filter((f) => !existing.has(f.fingerprint));
+    const existing = await api.listExistingInline(octokit, owner, repo, prNumber);
+    const fresh = result.kept.filter((f) => {
+      if (existing.fingerprints.has(f.fingerprint)) return false;
+      if (f.position && api.hasNearbyComment(existing.positions, f.position.file, f.position.end_line)) {
+        return false;
+      }
+      return true;
+    });
     const anchored = fresh.filter((f) => f.position);
     if (anchored.length > 0) {
       await api.postInlineReview(
