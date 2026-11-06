@@ -159,6 +159,30 @@ export async function postInlineReview(
 
 const FINDING_MARKER = findingMarkerRegex();
 
+/** True for transient GitHub/network errors worth retrying. */
+export function isRetryableGithubError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const err = e as { status?: number; code?: string; message?: string };
+  if (typeof err.status === "number" && [429, 500, 502, 503, 504].includes(err.status)) return true;
+  const text = `${err.code ?? ""} ${err.message ?? ""}`;
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|network|fetch failed/i.test(text);
+}
+
+/** Retry a GitHub call on transient errors, with exponential backoff. */
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 400): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      if (i === attempts - 1 || !isRetryableGithubError(e)) throw e;
+      await new Promise((r) => setTimeout(r, baseMs * 2 ** i));
+    }
+  }
+  throw last;
+}
+
 /** Fingerprints already posted as inline comments on this PR (for dedupe). */
 export async function listExistingFingerprints(
   octokit: Octokit,
