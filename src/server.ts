@@ -424,15 +424,17 @@ async function nothingToHunt(
   const summary =
     [...byReason.entries()].map(([reason, n]) => `${n} × ${reason}`).join(", ") || "no files changed";
 
-  await api.upsertSeance(
-    octokit,
-    owner,
-    repo,
-    prNumber,
-    scrubSecrets(
-      `## Nothing to hunt\n\nThis PR has **no reviewable files**, so no review was run. ` +
-        `Skipped: ${summary}.\n\nIf this looks wrong, check that the changes are not all ` +
-        "lockfiles, generated or vendored code, binaries, or pure renames — those are skipped by design.",
+  await api.withRetry(() =>
+    api.upsertSeance(
+      octokit,
+      owner,
+      repo,
+      prNumber,
+      scrubSecrets(
+        `## Nothing to hunt\n\nThis PR has **no reviewable files**, so no review was run. ` +
+          `Skipped: ${summary}.\n\nIf this looks wrong, check that the changes are not all ` +
+          "lockfiles, generated or vendored code, binaries, or pure renames — those are skipped by design.",
+      ),
     ),
   );
   await api.setCommitStatus(octokit, owner, repo, pr.headSha, nothingToHuntStatus());
@@ -536,29 +538,31 @@ async function huntOpenPr(
     deps,
   );
 
-  await api.upsertSeance(
-    octokit,
-    owner,
-    repo,
-    prNumber,
-    scrubSecrets(
-      renderSeance({
-        owner,
-        repo,
-        headSha: pr.headSha,
-        summary: result.summary,
-        kept: result.kept,
-        exorcised: result.exorcised,
-        skipped: result.skipped,
-        lurking: result.lurking,
-        verifierFailed: result.verifierFailed,
-        possessionAttempt: result.possessionAttempt,
-        possessionNote: result.notes.find((n) => n.startsWith("POSSESSION:"))?.slice("POSSESSION:".length).trim(),
-        counts: result.counts,
-        level: result.haunting.level,
-        title: result.haunting.title,
-        provider: providerDisplayName(env.LLM_PROVIDER),
-      }),
+  await api.withRetry(() =>
+    api.upsertSeance(
+      octokit,
+      owner,
+      repo,
+      prNumber,
+      scrubSecrets(
+        renderSeance({
+          owner,
+          repo,
+          headSha: pr.headSha,
+          summary: result.summary,
+          kept: result.kept,
+          exorcised: result.exorcised,
+          skipped: result.skipped,
+          lurking: result.lurking,
+          verifierFailed: result.verifierFailed,
+          possessionAttempt: result.possessionAttempt,
+          possessionNote: result.notes.find((n) => n.startsWith("POSSESSION:"))?.slice("POSSESSION:".length).trim(),
+          counts: result.counts,
+          level: result.haunting.level,
+          title: result.haunting.title,
+          provider: providerDisplayName(env.LLM_PROVIDER),
+        }),
+      ),
     ),
   );
 
