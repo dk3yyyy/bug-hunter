@@ -8,3 +8,6 @@ dist/
 .hallmark/
 .DS_Store
 *.log
+
+# design-taste-frontend working files
+.taste-skill/
