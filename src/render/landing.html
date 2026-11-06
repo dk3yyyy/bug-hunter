@@ -61,6 +61,7 @@
   }
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   html, body { overflow-x: clip; }
+  html { scrollbar-gutter: stable both-edges; }
   *, *::before, *::after { box-sizing: inherit; }
   body {
     margin: 0;
@@ -89,9 +90,8 @@
   /* hero */
   .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(2rem, 5vw, 4.5rem); align-items: center; padding-block: clamp(2rem, 6vw, 5rem) clamp(3rem, 7vw, 6rem); }
   .hero h1 {
-    font-size: clamp(2.8rem, 6.4vw, 5.2rem);
+    font-size: clamp(2.4rem, 4.6vw, 3.6rem);
     letter-spacing: -0.01em;
-    text-shadow: 0.045em 0.045em 0 color-mix(in srgb, var(--spirit) 28%, transparent);
   }
   .hero .lede { margin-top: 1.5rem; font-size: 1.2rem; color: var(--muted); }
   .cta-row { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: 2rem; align-items: center; }
@@ -132,9 +132,9 @@
   @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
   /* sections */
-  section.block { padding-block: clamp(2.5rem, 6vw, 4.5rem); border-top: 1px solid var(--line); }
-  .split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 5vw, 4rem); align-items: start; }
-  h2 { font-size: clamp(1.9rem, 3.8vw, 2.9rem); }
+  section.block { padding-block: clamp(2.5rem, 6vw, 4.5rem); }
+  .split { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 6fr); gap: clamp(1.5rem, 5vw, 4rem); align-items: start; }
+  h2 { font-size: clamp(1.8rem, 3.4vw, 2.6rem); }
   .intro p { margin-top: 1rem; color: var(--muted); }
   .demo-tag { display: inline-block; margin-top: .9rem; font-size: .85rem; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: .1rem .7rem; }
 
@@ -238,7 +238,7 @@
   .term-foot { padding: .8rem 1.1rem 1rem; border-top: 1px dashed var(--panel-line); font-size: .9rem; color: var(--panel-muted); max-width: none; }
   .term-foot code { color: var(--panel-ink); }
 
-  .end { padding-block: clamp(3rem, 7vw, 5.5rem); border-top: 1px solid var(--line); }
+  .end { padding-block: clamp(3rem, 7vw, 5.5rem); }
   .end h2 { max-width: 18ch; }
   .end p { margin-top: 1rem; color: var(--muted); }
   footer { padding-block: 1.5rem 2.5rem; font-size: .92rem; color: var(--muted); border-top: 1px solid var(--line); }
@@ -288,7 +288,7 @@
         <p class="cta-note">Free and open source. Gemini by default, or bring your own key for Claude, OpenAI, DeepSeek, OpenRouter, Ollama or any OpenAI-compatible model.</p>
       </div>
 
-      <div class="pr" aria-label="Example pull request review">
+      <div class="pr" data-ui aria-label="Example pull request review">
         <div class="pr-head"><strong>Add session cache</strong><span>acme/api, pull request 42 (demo data)</span></div>
         <div class="diff" role="img" aria-label="Code diff: a function reads a session from a cache and returns its user, with line 17 flagged">
           <div class="ln"><span class="n">14</span><span class="sig"> </span><span>function getSession(id: string) {</span></div>
@@ -347,7 +347,7 @@
     </section>
 
     <section class="block" aria-labelledby="looks-h">
-      <h2 id="looks-h" style="max-width: 24ch;">The model finds it. A second look doubts it. Code haunts it.</h2>
+      <h2 id="looks-h">The model finds it. A second look doubts it. Code haunts it.</h2>
       <p style="margin-top: 1rem; color: var(--muted);">The model only ever writes plain findings. The costume is added by code after a finding has survived, so the technical content never depends on the theme.</p>
       <div class="looks">
         <div class="look">
@@ -437,7 +437,7 @@
 
     <section class="block" id="automation" aria-labelledby="auto-h">
       <div class="intro">
-        <h2 id="auto-h" style="max-width: 22ch;">Then it files the paperwork by itself.</h2>
+        <h2 id="auto-h">Then it files the paperwork by itself.</h2>
         <p>Once the Séance Report is posted, n8n adds a row to the Hunt Ledger in Google Sheets and sends a Gmail alert when a pull request is haunted or possessed. Nobody has to copy anything across.</p>
         <span class="demo-tag">Demo data</span>
       </div>
