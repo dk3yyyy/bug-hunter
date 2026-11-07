@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Bug Hunter — open-source AI PR reviewer for GDG Sunderland Hacktoberfest 2026 AI Hack Day",
+  "description": "Bug Hunter — open-source AI PR reviewer. Bring your own model; every PR gets verified findings, inline fixes and a themed Séance Report.",
   "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/server.ts",
