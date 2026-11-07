@@ -298,6 +298,12 @@ ${loginCard}
     out.innerHTML = msg;
   }
 
+  function showDone(out, rec) {
+    out.innerHTML = '🕯️ <b>Hunt complete.</b> Haunting level: <b>' + esc(rec.hauntingLevel) +
+      '</b> · ' + esc(rec.keptCount) + ' spirit(s) · ' + esc(rec.exorcised || 0) + ' exorcised · ' +
+      '<a href="' + esc(rec.prUrl) + '" target="_blank" rel="noreferrer">view PR</a>';
+  }
+
   var huntBtn = document.getElementById('hunt-btn');
   if (huntBtn) huntBtn.addEventListener('click', function () {
     var out = document.getElementById('hunt-result');
@@ -305,12 +311,34 @@ ${loginCard}
     if (!url) { out.textContent = '✗ Enter a PR URL.'; return; }
     out.innerHTML = '🔦 Hunting… this can take a minute.';
     huntBtn.disabled = true;
-    post('/api/hunt', { pr_url: url }).then(function (r) {
-      huntBtn.disabled = false;
-      if (!r.ok) { fail(out, r); return; }
-      out.innerHTML = '🕯️ <b>Hunt complete.</b> Haunting level: <b>' + esc(r.j.hauntingLevel) +
-        '</b> · ' + esc(r.j.keptCount) + ' spirit(s) · ' + esc(r.j.exorcised || 0) + ' exorcised · ' +
-        '<a href="' + esc(r.j.prUrl) + '" target="_blank" rel="noreferrer">view PR</a>';
+    // Async: start the hunt, then poll until the result exists. Avoids proxy
+    // timeouts when a hunt takes ~2 minutes.
+    post('/api/hunt', { pr_url: url, async: true }).then(function (r) {
+      if (!r.ok) { huntBtn.disabled = false; fail(out, r); return; }
+      var id = r.j.id;
+      var started = Date.now();
+      function poll() {
+        fetch('/api/hunts/' + encodeURIComponent(id), { headers: { 'X-BugHunter-Secret': secret() } })
+          .then(function (pr) {
+            return pr.json().then(function (rec) { return { status: pr.status, rec: rec }; });
+          })
+          .then(function (x) {
+            if (x.status === 404) {
+              if (Date.now() - started > 240000) {
+                huntBtn.disabled = false;
+                out.textContent = '✗ Timed out waiting for the hunt. Check the pull request for the report.';
+                return;
+              }
+              setTimeout(poll, 3000);
+              return;
+            }
+            huntBtn.disabled = false;
+            if (x.status >= 400) { fail(out, { j: x.rec, status: x.status }); return; }
+            showDone(out, x.rec);
+          })
+          .catch(function () { setTimeout(poll, 3000); });
+      }
+      poll();
     }).catch(function (e) { huntBtn.disabled = false; out.textContent = '✗ ' + e.message; });
   });
 

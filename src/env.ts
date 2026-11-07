@@ -61,6 +61,8 @@ const schema = z.object({
   LLM_BASE_URL: z.string().default(""),
   LLM_MODEL_REVIEW: z.string().default(""),
   LLM_MODEL_FAST: z.string().default(""),
+  // Postgres connection string for hunt history. Empty = in-memory (dev/test).
+  DATABASE_URL: z.string().default(""),
   N8N_HUNT_WEBHOOK_URL: z.string().default(""),
   N8N_SHARED_SECRET: z.string().default("change-me-too"),
   MAX_FINDINGS: z.coerce.number().int().positive().default(12),

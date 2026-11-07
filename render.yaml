@@ -45,6 +45,12 @@ services:
         sync: false
       - key: LANDING_REPO_URL
         value: https://github.com/dk3yyyy/bug-hunter
+      # Persists hunt history across restarts/deploys (dashboard + /api/hunts).
+      # Without it the app falls back to in-memory storage.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bug-hunter-db
+          property: connectionString
       # "Connect with GitHub" login. Optional — leave blank to hide the button and
       # keep using the shared secret. Register an OAuth App with callback
       # <service-url>/auth/github/callback, then paste its ID and secret here.
@@ -54,3 +60,11 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+
+databases:
+  # Postgres for hunt history. Render creates it and injects DATABASE_URL above.
+  # The free plan includes a small Postgres; upgrade for production load.
+  - name: bug-hunter-db
+    plan: free
+    databaseName: bughunter
+    user: bughunter
