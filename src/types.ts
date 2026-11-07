@@ -195,4 +195,10 @@ export interface HuntRecord {
   keptCount: number;
   topFindings: Array<{ severity: string; title: string; file: string; line: number }>;
   finishedAt: string;
+  /** Token usage across the review/verify/seance passes, when known. */
+  usage?: { inputTokens: number; outputTokens: number };
+  /** Estimated USD cost; null when the model has no known price. */
+  costUsd?: number | null;
+  /** The model that produced this hunt (review model). */
+  model?: string;
 }

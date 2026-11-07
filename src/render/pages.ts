@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import type { HuntRecord } from "../types";
 import type { Learning } from "../learnings";
+import { formatUsd } from "../cost";
 
 const landingFile = new URL("./landing.html", import.meta.url);
 
@@ -119,18 +120,33 @@ const LEVEL_BADGE: Record<string, string> = {
   clear: "b-clear",
 };
 
-export function renderDashboard(hunts: HuntRecord[], learnings: Learning[] = []): string {
+export function renderDashboard(
+  hunts: HuntRecord[],
+  learnings: Learning[] = [],
+  cost: { monthSpendUsd: number; capUsd: number } = { monthSpendUsd: 0, capUsd: 0 },
+): string {
   const rows = [...hunts].slice(-50).reverse();
+  const priced = rows.filter((r) => typeof r.costUsd === "number");
+  const avgCost = priced.length
+    ? priced.reduce((a, r) => a + (r.costUsd ?? 0), 0) / priced.length
+    : 0;
+  const tokens = rows.reduce(
+    (a, r) => a + (r.usage ? r.usage.inputTokens + r.usage.outputTokens : 0),
+    0,
+  );
   const stats = {
     hunts: rows.length,
     spirits: rows.reduce((a, r) => a + r.keptCount, 0),
     possessed: rows.filter((r) => r.hauntingLevel === "possessed").length,
     exorcised: rows.reduce((a, r) => a + r.exorcised, 0),
     learnings: learnings.length,
+    monthSpend: cost.monthSpendUsd,
+    avgCost,
+    tokens,
   };
 
   const table = rows.length
-    ? `<table><thead><tr><th>Repo</th><th>PR</th><th>Title</th><th>Haunting</th><th>Spirits</th><th>Exorcised</th></tr></thead><tbody>
+    ? `<table><thead><tr><th>Repo</th><th>PR</th><th>Title</th><th>Haunting</th><th>Spirits</th><th>Exorcised</th><th>Cost</th></tr></thead><tbody>
 ${rows
   .map(
     (r) => `<tr>
@@ -140,6 +156,7 @@ ${rows
 <td><span class="badge ${LEVEL_BADGE[r.hauntingLevel] ?? "b-clear"}">${escapeHtml(r.hauntingLevel)}</span>${r.possessionAttempt ? " 🪄" : ""}</td>
 <td>${r.keptCount}</td>
 <td>${r.exorcised}</td>
+<td class="mono">${typeof r.costUsd === "number" ? formatUsd(r.costUsd) : "—"}</td>
 </tr>`,
   )
   .join("")}
@@ -171,6 +188,9 @@ ${learnings
   <div class="stat"><span class="n">${stats.possessed}</span><span class="lbl">possessed</span></div>
   <div class="stat"><span class="n">${stats.exorcised}</span><span class="lbl">false alarms exorcised</span></div>
   <div class="stat"><span class="n">${stats.learnings}</span><span class="lbl">learnings</span></div>
+  <div class="stat"><span class="n">${formatUsd(stats.monthSpend)}</span><span class="lbl">spent this month${cost.capUsd > 0 ? ` of ${formatUsd(cost.capUsd)}` : ""}</span></div>
+  <div class="stat"><span class="n">${formatUsd(stats.avgCost)}</span><span class="lbl">avg cost / hunt</span></div>
+  <div class="stat"><span class="n">${stats.tokens.toLocaleString("en-US")}</span><span class="lbl">tokens (last ${stats.hunts})</span></div>
 </div>
 <h2 style="margin-top:32px">Recent hunts</h2>
 ${table}

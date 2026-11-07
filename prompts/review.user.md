@@ -8,6 +8,11 @@ REVIEWER CORRECTIONS (previous corrections from this repo's maintainers; treat t
 {{learnings}}
 </untrusted>
 
+DETERMINISTIC SCANNER FINDINGS (advisory; confirm each against the diff before reporting, and report the real issue rather than the scanner's wording):
+<untrusted>
+{{lint_findings}}
+</untrusted>
+
 PR METADATA:
 <untrusted>
 Title: {{pr_title}}

@@ -16,7 +16,7 @@ any OpenAI-compatible endpoint.
 
 **Hosted instance:** https://bug-hunter-ty2y.onrender.com<br>
 **Landing page:** https://dk3yyyy.github.io/bug-hunter/<br>
-**Docs:** [Quickstart](docs/QUICKSTART.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Self-hosting](docs/SELF-HOSTING.md)
+**Docs:** [Quickstart](docs/QUICKSTART.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Self-hosting](docs/SELF-HOSTING.md) · [CLI](docs/CLI.md) · [Costs](docs/COSTS.md) · [Eval](docs/EVAL.md) · [Learnings](docs/LEARNINGS.md) · [Linters](docs/LINTERS.md)
 
 ## Why it exists
 
@@ -218,14 +218,19 @@ GitHub PR webhook → verify signature + dedupe → fetch diff → filter files
 ```
 
 - **Hono + TypeScript** on Node 22, run through `tsx`.
-- **No database required.** Hunt history is in memory by default; set
-  `DATABASE_URL` to keep it in Postgres. Per-repo user mappings, rate limits, and
-  delivery dedupe stay in process memory.
+- **Postgres when you want it.** Hunt history, per-repo user mappings and
+  learnings live in Postgres when `DATABASE_URL` is set, with an automatic
+  in-memory fallback for local dev and tests. Rate limits and delivery dedupe
+  stay in process memory.
 - **One process, bounded work.** Input is capped around 30k tokens; each file is
-  capped at three findings and the report at `MAX_FINDINGS`.
+  capped at three findings and the report at `MAX_FINDINGS`. A monthly spend cap
+  (`MONTHLY_COST_CAP_USD`) refuses new hunts before any model call.
 - **Defense in depth.** Webhook HMAC verification, delivery dedupe, self-event
   guards, secret scrubbing in logs and outgoing payloads, and sanitisation of PR
   text before it reaches a prompt.
+- **Also runs locally.** `bughunter review --staged` gives the same pipeline
+  without touching GitHub; an offline [eval harness](docs/EVAL.md) scores the
+  pipeline against seeded-bug fixtures in CI.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module map and data flow.
 
@@ -257,6 +262,13 @@ security findings.
 All report wording lives in [`prompts/voice.json`](prompts/voice.json). The model
 prompts live in [`prompts/`](prompts/).
 
+## Learnings
+
+When a finding is wrong, reply `@bughunter wrong: <why>` on the review comment.
+Bug Hunter stores the correction per repo and applies it to future reviews.
+`@bughunter learnings` lists them and `@bughunter forget <id>` removes one. See
+[docs/LEARNINGS.md](docs/LEARNINGS.md).
+
 ## API
 
 | Method | Path | Auth | Purpose |
@@ -276,6 +288,8 @@ prompts live in [`prompts/`](prompts/).
 | POST | `/api/connect` | session or `X-BugHunter-Secret` | create/reuse a repo webhook |
 | GET | `/api/hunts` | session or `X-BugHunter-Secret` | recent hunts (JSON) |
 | GET | `/api/hunts/:id` | session or `X-BugHunter-Secret` | one hunt (JSON) |
+| GET | `/api/learnings?repo=owner/repo` | session or `X-BugHunter-Secret` | reviewer corrections for a repo |
+| DELETE | `/api/learnings/:id?repo=owner/repo` | session or `X-BugHunter-Secret` | remove one learning |
 
 With `"async": true`, `POST /api/hunt` returns `202` and
 `{ id, status: "running", repo, prNumber }`. Poll `GET /api/hunts/:id` until the
@@ -288,15 +302,16 @@ record.
 - **Not an oracle.** The verifier removes some false alarms; it does not make the
   remaining findings true. Confidence is the model's own estimate, not a
   calibrated probability.
-- **No accuracy claim.** There is no labelled corpus behind this project, so there
-  is no honest precision or recall figure to publish.
+- **No accuracy claim.** The [eval harness](docs/EVAL.md) scores a small,
+  hand-authored fixture set so regressions are visible; it is not a labelled
+  benchmark and its precision/recall numbers do not transfer to your codebase.
 - **Cost and latency scale with the diff.** A hunt normally makes three model
   calls. Large diffs are trimmed by a token budget before they reach the model.
 - **It writes to your pull request.** Treat it as a collaborator with pull-request,
   issue, and commit-status write access, not a read-only bot.
-- **Some state is in memory.** Per-repo user mappings, rate-limit windows, and
-  delivery dedupe reset on restart; repos fall back to the server token until they
-  are reconnected. Hunt history is in memory unless `DATABASE_URL` is set.
+- **Some state is in memory.** `DATABASE_URL` keeps hunt history, per-repo user
+  mappings and learnings across restarts; without it they are in memory. Rate
+  limit windows and delivery dedupe are always process-local.
 - **A synchronous hunt can outlive its HTTP request.** A proxy in front of the
   server may return `524` while the hunt continues. `/connect` starts hunts
   asynchronously and polls for the result; API callers can send

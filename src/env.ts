@@ -67,6 +67,10 @@ const schema = z.object({
   N8N_SHARED_SECRET: z.string().default("change-me-too"),
   MAX_FINDINGS: z.coerce.number().int().positive().default(12),
   CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.7),
+  // Month-to-date LLM spend cap in USD. 0 = unlimited (the default).
+  MONTHLY_COST_CAP_USD: z.coerce.number().min(0).default(0),
+  // Run deterministic linters (gitleaks/semgrep/eslint) where a checkout exists.
+  LINT_ENABLED: z.string().default(""),
   BOT_HANDLE: z.string().default("bughunter"),
 }).superRefine((v, ctx) => {
   if (v.N8N_SHARED_SECRET === "change-me-too") {

@@ -123,8 +123,10 @@ export async function generateStructured<T>(opts: {
   system: string;
   prompt: string;
   label?: string;
+  /** Called after every successful call with that call's token usage. */
+  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void;
 }): Promise<T> {
-  const { model, schema, system, prompt, label } = opts;
+  const { model, schema, system, prompt, label, onUsage } = opts;
   const maxAttempts = 3;
   let lastError: unknown = null;
 
@@ -138,6 +140,12 @@ export async function generateStructured<T>(opts: {
         temperature: 0.1,
         maxTokens: 8192,
       });
+      if (onUsage && result.usage) {
+        onUsage({
+          inputTokens: result.usage.promptTokens ?? 0,
+          outputTokens: result.usage.completionTokens ?? 0,
+        });
+      }
       return result.object;
     } catch (err) {
       lastError = err;
@@ -154,7 +162,7 @@ export async function generateStructured<T>(opts: {
   // error from the failed attempt, then parse + validate ourselves.
   try {
     const hint = validationHint(lastError);
-    const { text } = await generateText({
+    const { text, usage } = await generateText({
       model,
       system,
       prompt:
@@ -162,6 +170,12 @@ export async function generateStructured<T>(opts: {
         (hint ? `\n\nYour previous answer failed validation with this error; fix it:\n${hint}` : ""),
       temperature: 0,
     });
+    if (onUsage && usage) {
+      onUsage({
+        inputTokens: usage.promptTokens ?? 0,
+        outputTokens: usage.completionTokens ?? 0,
+      });
+    }
     const repaired = repairJson(schema, text);
     if (repaired.ok) return repaired.value;
     throw new Error(repaired.error);
