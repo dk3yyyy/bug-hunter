@@ -1,0 +1,15 @@
+{
+  "id": "race-condition",
+  "name": "Increment a counter in the shared cache",
+  "diff": "diff --git a/src/cache/store.ts b/src/cache/store.ts\nindex ccc1111..ddd2222 100644\n--- a/src/cache/store.ts\n+++ b/src/cache/store.ts\n@@ -1,7 +1,8 @@\n const cache = new Map<string, number>();\n \n export async function increment(key: string): Promise<number> {\n   const current = cache.get(key) ?? 0;\n-  cache.set(key, current + 1);\n-  return current + 1;\n+  await new Promise((resolve) => setTimeout(resolve, 10));\n+  cache.set(key, current + 1);\n+  return cache.get(key) ?? 0;\n }\n",
+  "golden": [
+    {
+      "file": "src/cache/store.ts",
+      "line": 5,
+      "severity": "high",
+      "title": "Race condition in read-modify-write",
+      "category": "concurrency"
+    }
+  ],
+  "clean": false
+}

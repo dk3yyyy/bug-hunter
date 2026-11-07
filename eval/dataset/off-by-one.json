@@ -1,0 +1,15 @@
+{
+  "id": "off-by-one",
+  "name": "Collect every item into a single array",
+  "diff": "diff --git a/src/utils/paginate.ts b/src/utils/paginate.ts\nindex 777aaaa..888bbbb 100644\n--- a/src/utils/paginate.ts\n+++ b/src/utils/paginate.ts\n@@ -1,7 +1,7 @@\n export function takeAll<T>(items: T[]): T[] {\n   const out: T[] = [];\n-  for (let i = 0; i < items.length; i++) {\n-    out.push(items[i]);\n+  for (let i = 0; i <= items.length; i++) {\n+    out.push(items[i]);\n   }\n   return out;\n }\n",
+  "golden": [
+    {
+      "file": "src/utils/paginate.ts",
+      "line": 3,
+      "severity": "high",
+      "title": "Off-by-one reads past the end of the array",
+      "category": "bug"
+    }
+  ],
+  "clean": false
+}

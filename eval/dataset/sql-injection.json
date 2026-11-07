@@ -1,0 +1,15 @@
+{
+  "id": "sql-injection",
+  "name": "Look up a user by email address",
+  "diff": "diff --git a/src/db/query.ts b/src/db/query.ts\nindex 999cccc..aaadddd 100644\n--- a/src/db/query.ts\n+++ b/src/db/query.ts\n@@ -1,7 +1,7 @@\n import { pool } from \"./pool\";\n \n export async function findUserByEmail(email: string) {\n-  const sql = \"SELECT * FROM users WHERE email = $1\";\n-  const { rows } = await pool.query(sql, [email]);\n+  const sql = `SELECT * FROM users WHERE email = '${email}'`;\n+  const { rows } = await pool.query(sql);\n   return rows[0] ?? null;\n }\n",
+  "golden": [
+    {
+      "file": "src/db/query.ts",
+      "line": 4,
+      "severity": "critical",
+      "title": "SQL injection via template interpolation",
+      "category": "security"
+    }
+  ],
+  "clean": false
+}
