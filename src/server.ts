@@ -18,6 +18,7 @@ import {
 import { openSession, sealSession, SESSION_TTL_MS, type Session } from "./session";
 import { recallRepoConnection, rememberRepoConnection, repoConnectionCount } from "./tenancy";
 import { getOctokit } from "./github/client";
+import { createHuntStore } from "./store";
 import { installUrl, addRepo, removeRepo, listRepos, connectUrlFor, installationIdForRepo } from "./github/app";
 import { webhookUrlFor } from "./connect";
 import * as api from "./github/api";
@@ -68,8 +69,6 @@ const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
 // One in-flight hunt per PR (duplicate runs = duplicate comments + spend).
 const runningHunts = new Set<string>();
-// hunts is append-only: cap it so a long-lived server cannot grow without bound.
-const MAX_HUNTS = 200;
 
 function rememberDelivery(id: string): boolean {
   if (seenDeliveries.has(id)) return false;
@@ -80,7 +79,7 @@ function rememberDelivery(id: string): boolean {
 const commandCooldown = new Map<string, number>();
 const COMMAND_COOLDOWN_MS = 5 * 60_000;
 
-const hunts = new Map<string, HuntRecord>();
+const hunts = createHuntStore(env.DATABASE_URL);
 
 function logFailure(repo: string, pr: number, err: unknown): void {
   const name = err instanceof Error ? err.name : "UnknownError";
@@ -345,6 +344,8 @@ async function runHuntForPr(
   installationId?: number,
   /** Token of the user who connected this repo; null/undefined = server token. */
   userToken?: string | null,
+  /** Pre-generated id for async callers that return it before the hunt finishes. */
+  huntId?: string,
 ): Promise<HuntRecord | null> {
   // Per-PR mutual exclusion: a debounced synchronize hunt and a manual @bot
   // hunt must not run concurrently (duplicate inline comments + double spend).
@@ -359,6 +360,7 @@ async function runHuntForPr(
       expectedHeadSha,
       installationId,
       userToken,
+      huntId,
     );
   } finally {
     runningHunts.delete(huntKey);
@@ -372,6 +374,7 @@ async function runHuntForPrInner(
   expectedHeadSha?: string,
   installationId?: number,
   userToken?: string | null,
+  huntId?: string,
 ): Promise<HuntRecord | null> {
   // Act as the user who connected this repo when we know them, so the review is
   // attributed to them and constrained by their own permissions. Falls back to the
@@ -397,7 +400,7 @@ async function runHuntForPrInner(
   });
 
   try {
-    return await huntOpenPr(octokit, owner, repo, prNumber, pr);
+    return await huntOpenPr(octokit, owner, repo, prNumber, pr, huntId);
   } catch (e) {
     // Never leave the PR stuck on "pending" (status error copy comes from voice.json).
     const err = errorStatus();
@@ -418,6 +421,7 @@ async function nothingToHunt(
   prNumber: number,
   pr: Awaited<ReturnType<typeof api.getPr>>,
   skipped: Array<{ path: string; reason: string }>,
+  huntId?: string,
 ): Promise<HuntRecord> {
   const byReason = new Map<string, number>();
   for (const s of skipped) byReason.set(s.reason, (byReason.get(s.reason) ?? 0) + 1);
@@ -441,7 +445,7 @@ async function nothingToHunt(
 
   const zero = { critical: 0, high: 0, medium: 0, low: 0, nitpick: 0 };
   const record: HuntRecord = {
-    id: `h_${Math.random().toString(36).slice(2, 10)}`,
+    id: huntId ?? `h_${Math.random().toString(36).slice(2, 10)}`,
     repo: `${owner}/${repo}`,
     prNumber,
     prTitle: pr.title,
@@ -454,7 +458,7 @@ async function nothingToHunt(
     topFindings: [],
     finishedAt: new Date().toISOString(),
   };
-  hunts.set(record.id, record);
+  await hunts.save(record);
   return record;
 }
 
@@ -464,6 +468,7 @@ async function huntOpenPr(
   repo: string,
   prNumber: number,
   pr: Awaited<ReturnType<typeof api.getPr>>,
+  huntId?: string,
 ): Promise<HuntRecord> {
   const files = await api.listFiles(octokit, owner, repo, prNumber);
   const repoRules = await readGuidelines(octokit, owner, repo, pr.baseRef);
@@ -477,7 +482,7 @@ async function huntOpenPr(
   // filtered). Running the model here would burn calls and then post a green
   // "All clear — the hunter searched every changed line" over a PR it never read.
   if (huntedFiles.length === 0) {
-    return nothingToHunt(octokit, owner, repo, prNumber, pr, skippedFiles);
+    return nothingToHunt(octokit, owner, repo, prNumber, pr, skippedFiles, huntId);
   }
 
   // Input budget (~30k tokens, SPEC §11 step 5): the diff gets priority,
@@ -617,7 +622,7 @@ async function huntOpenPr(
   const falseAlarms = result.exorcised.filter((e) => e.source !== "trimmed").length;
 
   const record: HuntRecord = {
-    id: `h_${Math.random().toString(36).slice(2, 10)}`,
+    id: huntId ?? `h_${Math.random().toString(36).slice(2, 10)}`,
     repo: `${owner}/${repo}`,
     prNumber,
     prTitle: pr.title,
@@ -636,13 +641,7 @@ async function huntOpenPr(
     })),
     finishedAt: new Date().toISOString(),
   };
-  hunts.set(record.id, record);
-  if (hunts.size > MAX_HUNTS) {
-    for (const key of hunts.keys()) {
-      if (hunts.size <= MAX_HUNTS) break;
-      hunts.delete(key);
-    }
-  }
+  await hunts.save(record);
 
   const n8n: HuntNotifyPayload = {
     event: "hunt.completed",
@@ -1020,6 +1019,19 @@ app.post("/api/hunt", async (c) => {
   const userToken =
     env.GITHUB_MODE === "pat" && session ? await tokenForSession(c, session) : null;
 
+  // Async mode: return a handle immediately and run in the background, so a slow
+  // hunt (3 LLM calls, ~2 min) can't be cut off by a proxy/platform timeout.
+  if (body.async === true) {
+    const huntId = `h_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+    void runHuntForPr(owner, repo, prNumber, undefined, installationId, userToken, huntId).catch(
+      (e) => logFailure(`${owner}/${repo}`, prNumber, e),
+    );
+    return c.json(
+      { id: huntId, status: "running", repo: `${owner}/${repo}`, prNumber },
+      202,
+    );
+  }
+
   try {
     const record = await runHuntForPr(
       owner,
@@ -1165,18 +1177,18 @@ app.post("/api/connect", async (c) => {
   }
 });
 
-app.get("/api/hunts", (c) => {
+app.get("/api/hunts", async (c) => {
   if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
-  return c.json([...hunts.values()].slice(-50).reverse());
+  return c.json(await hunts.list(50));
 });
-app.get("/api/hunts/:id", (c) => {
+app.get("/api/hunts/:id", async (c) => {
   if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
-  const rec = hunts.get(c.req.param("id"));
+  const rec = await hunts.get(c.req.param("id"));
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });
 
-// In-memory results dashboard (Step 4).
-app.get("/dashboard", (c) => c.html(renderDashboard([...hunts.values()])));
+// Results dashboard (Postgres when DATABASE_URL is set, else in-memory).
+app.get("/dashboard", async (c) => c.html(renderDashboard(await hunts.list(50))));
 app.get("/summoned", (c) =>
   c.html(renderSummoned(listRepos(), c.req.query("installation_id"))),
 );
