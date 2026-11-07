@@ -64,8 +64,7 @@ export async function listFiles(
   return files;
 }
 
-/** A GitHub issue's title/body, or null when it does not exist. */
-export async function getIssue(
+/** A GitHub issue's title/body, or null when it does not exist. */export async function getIssue(
   octokit: Octokit,
   owner: string,
   repo: string,
@@ -343,6 +342,27 @@ export async function replyComment(
     issue_number: pr,
     body,
   });
+  return data.id;
+}
+
+/** Reply inside an existing inline review-comment thread. */
+export async function replyToReviewComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pr: number,
+  commentId: number,
+  body: string,
+): Promise<number> {
+  const { data } = await withRetry(() =>
+    octokit.rest.pulls.createReplyForReviewComment({
+      owner,
+      repo,
+      pull_number: pr,
+      comment_id: commentId,
+      body,
+    }),
+  );
   return data.id;
 }
 

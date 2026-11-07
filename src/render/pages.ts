@@ -2,6 +2,7 @@
 // other pages share one shell so every surface matches the green-black v2 design.
 import { readFileSync } from "node:fs";
 import type { HuntRecord } from "../types";
+import type { Learning } from "../learnings";
 
 const landingFile = new URL("./landing.html", import.meta.url);
 
@@ -118,13 +119,14 @@ const LEVEL_BADGE: Record<string, string> = {
   clear: "b-clear",
 };
 
-export function renderDashboard(hunts: HuntRecord[]): string {
+export function renderDashboard(hunts: HuntRecord[], learnings: Learning[] = []): string {
   const rows = [...hunts].slice(-50).reverse();
   const stats = {
     hunts: rows.length,
     spirits: rows.reduce((a, r) => a + r.keptCount, 0),
     possessed: rows.filter((r) => r.hauntingLevel === "possessed").length,
     exorcised: rows.reduce((a, r) => a + r.exorcised, 0),
+    learnings: learnings.length,
   };
 
   const table = rows.length
@@ -144,18 +146,36 @@ ${rows
 </tbody></table>`
     : `<div class="card"><p>No hunts yet. Open a pull request or POST <code>/api/hunt</code> to summon the first one.</p></div>`;
 
+  const learningRows = learnings.length
+    ? `<table><thead><tr><th>Repo</th><th>Learning</th><th>Source</th><th>Added</th></tr></thead><tbody>
+${learnings
+  .map(
+    (l) => `<tr>
+<td class="mono">${escapeHtml(l.repo)}</td>
+<td>${l.sourceUrl ? `<a href="${escapeHtml(l.sourceUrl)}">${escapeHtml(l.text)}</a>` : escapeHtml(l.text)}</td>
+<td class="mono">${escapeHtml(l.source)}</td>
+<td class="mono">${escapeHtml(l.createdAt.slice(0, 10))}</td>
+</tr>`,
+  )
+  .join("")}
+</tbody></table>`
+    : `<div class="card"><p>No reviewer corrections yet. Reply <code>@bot wrong: &lt;why&gt;</code> on a review comment to teach one.</p></div>`;
+
   return shell(
     "Bug Hunter — Dashboard",
     `<h1 class="reveal">Dashboard</h1>
-<p class="lede">Every hunt this server has run, in memory (resets on restart).</p>
+<p class="lede">Every hunt this server has run${learnings.length ? ", and the corrections reviewers taught it" : ""}.</p>
 <div class="grid">
   <div class="stat"><span class="n">${stats.hunts}</span><span class="lbl">hunts run</span></div>
   <div class="stat"><span class="n">${stats.spirits}</span><span class="lbl">spirits found</span></div>
   <div class="stat"><span class="n">${stats.possessed}</span><span class="lbl">possessed</span></div>
   <div class="stat"><span class="n">${stats.exorcised}</span><span class="lbl">false alarms exorcised</span></div>
+  <div class="stat"><span class="n">${stats.learnings}</span><span class="lbl">learnings</span></div>
 </div>
 <h2 style="margin-top:32px">Recent hunts</h2>
-${table}`,
+${table}
+<h2 style="margin-top:32px">Learnings</h2>
+${learningRows}`,
   );
 }
 

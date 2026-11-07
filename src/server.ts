@@ -35,6 +35,12 @@ import { runHunt, type HuntDeps } from "./hunt/pipeline";
 import { buildContext, buildRepoRules } from "./hunt/context";
 import { filterFiles } from "./hunt/filters";
 import { formatLinkedIssues, parseIssueRefs } from "./hunt/issues";
+import {
+  formatLearnings,
+  parseLearningCommand,
+  MAX_LEARNING_CHARS,
+  type Learning,
+} from "./learnings";
 import { BoundedSet, HuntRateLimiter, planBudget, trimContext } from "./hunt/budget";
 import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
@@ -538,6 +544,10 @@ async function huntOpenPr(
   if (refs.keys.length > 0) linkedParts.push(`Referenced tickets: ${refs.keys.slice(0, 10).join(", ")}`);
   const linkedIssues = linkedParts.length > 0 ? linkedParts.join("\n") : "(none)";
 
+  // Reviewer corrections for this repo: injected as extra review rules.
+  const repoLearnings = await hunts.listLearnings(`${owner}/${repo}`, 20);
+  const learnings = formatLearnings(repoLearnings);
+
   const result = await runHunt(
     {
       owner,
@@ -547,6 +557,7 @@ async function huntOpenPr(
       prTitle: pr.title,
       prBody: pr.body,
       linkedIssues,
+      learnings,
       files,
       repoRules,
       context,
@@ -738,6 +749,73 @@ const SPELLBOOK = `🎃 **Bug Hunter — spellbook**
 
 Every hunt runs an AI review + a skeptical verifier pass, detects possession attempts, and posts the 🔮 Séance Report.`;
 
+/** Voice-flavored acknowledgements for learnings (kept short; posted as replies). */
+const LEARNING_HELP = `🕯️ **Teach me.** Reply on a review comment with:
+
+- \`@${env.BOT_HANDLE} wrong: <why>\` — stop flagging that (remembered for this repo)
+- \`@${env.BOT_HANDLE} learn <rule>\` — add a review rule
+- \`@${env.BOT_HANDLE} learnings\` — list what I remember
+- \`@${env.BOT_HANDLE} forget <id>\` — drop one`;
+
+/**
+ * Persist or manage a reviewer correction found in a comment body.
+ * Returns true when the comment was a learning command (and was handled).
+ * Callers resolve the comment target (issue comment vs review thread reply).
+ */
+async function handleLearningCommand(opts: {
+  body: string;
+  owner: string;
+  repo: string;
+  trusted: boolean;
+  commentUrl?: string;
+  reply: (text: string) => Promise<unknown>;
+}): Promise<boolean> {
+  const cmd = parseLearningCommand(opts.body, env.BOT_HANDLE);
+  if (cmd.kind === "none") return false;
+
+  if (!opts.trusted) {
+    await opts.reply("🕯️ Only repo collaborators can teach me lessons.").catch(() => {});
+    return true;
+  }
+
+  const repoKey = `${opts.owner}/${opts.repo}`.toLowerCase();
+
+  if (cmd.kind === "list") {
+    const list = await hunts.listLearnings(repoKey, 10);
+    if (list.length === 0) {
+      await opts.reply(`🕯️ Nothing remembered for \`${repoKey}\` yet.\n\n${LEARNING_HELP}`).catch(() => {});
+      return true;
+    }
+    const lines = list.map((l) => `- \`${l.id}\` — ${l.text}`).join("\n");
+    await opts
+      .reply(`🧾 **Learnings for this repo**\n\n${lines}\n\nRemove one with \`@${env.BOT_HANDLE} forget <id>\`.`)
+      .catch(() => {});
+    return true;
+  }
+
+  if (cmd.kind === "forget") {
+    const ok = await hunts.deleteLearning(repoKey, cmd.id);
+    await opts
+      .reply(ok ? `🗑️ Forgotten \`${cmd.id}\`.` : `❔ No learning \`${cmd.id}\` on this repo.`)
+      .catch(() => {});
+    return true;
+  }
+
+  const learning: Learning = {
+    id: `l_${randomUUID().replace(/-/g, "").slice(0, 8)}`,
+    repo: repoKey,
+    text: cmd.text.slice(0, MAX_LEARNING_CHARS),
+    source: "reply",
+    ...(opts.commentUrl ? { sourceUrl: opts.commentUrl } : {}),
+    createdAt: new Date().toISOString(),
+  };
+  await hunts.saveLearning(learning);
+  await opts
+    .reply(`🕯️ Noted — I'll remember that for \`${repoKey}\`.\n\n> ${learning.text}\n\nUndo with \`@${env.BOT_HANDLE} forget ${learning.id}\`.`)
+    .catch(() => {});
+  return true;
+}
+
 // Commands (Step 4): issue_comment on a PR mentioning the bot.
 webhooks.on("issue_comment.created", async ({ id, payload }) => {
   const p = payload as PrWebhookPayload;
@@ -760,6 +838,18 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
   const octokit = userToken
     ? new Octokit({ auth: userToken })
     : await getOctokit(installationId);
+
+  // Reviewer corrections: teach/forget/list before the hunt commands.
+  const handled = await handleLearningCommand({
+    body,
+    owner,
+    repo,
+    trusted: isTrustedCommander(p),
+    ...(p.comment?.html_url ? { commentUrl: p.comment.html_url } : {}),
+    reply: (text) => api.replyComment(octokit, owner, repo, pr, text),
+  });
+  if (handled) return;
+
   if (p.comment?.id) await api.addReaction(octokit, owner, repo, p.comment.id, "eyes");
 
   if (cmd.kind === "hunt" || cmd.kind === "seance") {
@@ -779,6 +869,36 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
   }
   // spellbook / unknown
   await api.replyComment(octokit, owner, repo, pr, SPELLBOOK).catch(() => {});
+});
+
+// Reviewer corrections can also arrive as replies on an inline review comment
+// (the natural place to say "wrong: that's validated upstream").
+webhooks.on("pull_request_review_comment.created", async ({ id, payload }) => {
+  const p = payload as PrWebhookPayload;
+  if (!rememberDelivery(id)) return;
+  if (isSelfEvent(p)) return;
+
+  const full = p.repository?.full_name;
+  const pr = p.pull_request?.number;
+  const commentId = p.comment?.id;
+  if (!full || typeof pr !== "number" || typeof commentId !== "number") return;
+  const [owner, repo] = full.split("/");
+  if (!owner || !repo) return;
+  if (p.comment?.in_reply_to_id === undefined && !p.comment?.body) return;
+  if (parseLearningCommand(p.comment?.body ?? "", env.BOT_HANDLE).kind === "none") return;
+
+  const userToken = await huntTokenFor(`${owner}/${repo}`);
+  const octokit = userToken
+    ? new Octokit({ auth: userToken })
+    : await getOctokit(p.installation?.id);
+  await handleLearningCommand({
+    body: p.comment?.body ?? "",
+    owner,
+    repo,
+    trusted: isTrustedCommander(p),
+    ...(p.comment?.html_url ? { commentUrl: p.comment.html_url } : {}),
+    reply: (text) => api.replyToReviewComment(octokit, owner, repo, pr, commentId, text),
+  }).catch((e) => logFailure(`${owner}/${repo}`, pr, e));
 });
 
 // GitHub App install lifecycle (Step 4): track which repos are connected.
@@ -1202,8 +1322,24 @@ app.get("/api/hunts/:id", async (c) => {
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });
 
+// Reviewer corrections ("learnings"), scoped per repo.
+app.get("/api/learnings", async (c) => {
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+  const repo = (c.req.query("repo") ?? "").trim().toLowerCase();
+  if (!repo) return c.json({ error: "need ?repo=owner/repo" }, 400);
+  return c.json(await hunts.listLearnings(repo, 50));
+});
+app.delete("/api/learnings/:id", async (c) => {
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+  const repo = (c.req.query("repo") ?? "").trim().toLowerCase();
+  if (!repo) return c.json({ error: "need ?repo=owner/repo" }, 400);
+  return c.json({ ok: await hunts.deleteLearning(repo, c.req.param("id")) });
+});
+
 // Results dashboard (Postgres when DATABASE_URL is set, else in-memory).
-app.get("/dashboard", async (c) => c.html(renderDashboard(await hunts.list(50))));
+app.get("/dashboard", async (c) =>
+  c.html(renderDashboard(await hunts.list(50), await hunts.recentLearnings(20))),
+);
 app.get("/summoned", (c) =>
   c.html(renderSummoned(listRepos(), c.req.query("installation_id"))),
 );

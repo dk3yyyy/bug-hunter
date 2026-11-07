@@ -64,6 +64,8 @@ export interface HuntInput {
   prBody: string;
   /** Prompt-ready list of linked issues/tickets, or "(none)". */
   linkedIssues?: string;
+  /** Reviewer corrections stored for this repo, or "(none)". */
+  learnings?: string;
   files: ChangedFile[];
   repoRules: string;
   context: string; // already-built context text
@@ -148,6 +150,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     pr_body: cleanBody,
     hidden_content_or_none: hiddenContent.length ? hiddenContent.join("\n---\n") : "(none)",
     linked_issues: input.linkedIssues?.trim() || "(none)",
+    learnings: input.learnings?.trim() || "(none)",
     context: input.context,
     annotated_diff: input.annotatedDiff,
   };

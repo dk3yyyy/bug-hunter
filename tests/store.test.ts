@@ -37,3 +37,39 @@ describe("HuntStore (in-memory fallback)", () => {
     expect((await store.get("a"))?.keptCount).toBe(3);
   });
 });
+
+describe("HuntStore learnings", () => {
+  const lrn = (id: string, text: string, createdAt = "2026-01-01T00:00:00.000Z") => ({
+    id,
+    repo: "Acme/App",
+    text,
+    source: "reply" as const,
+    createdAt,
+  });
+
+  it("saves, lists newest first, and dedupes by text", async () => {
+    const store = createHuntStore("");
+    await store.saveLearning(lrn("l1", "Don't flag TODOs", "2026-01-01T00:00:00.000Z"));
+    await store.saveLearning(lrn("l2", "Use zod for input", "2026-01-02T00:00:00.000Z"));
+    await store.saveLearning(lrn("l3", "dont flag todos", "2026-01-03T00:00:00.000Z"));
+    const list = await store.listLearnings("acme/app");
+    expect(list.map((l) => l.id)).toEqual(["l3", "l2"]);
+    expect(await store.recentLearnings(10)).toHaveLength(2);
+  });
+
+  it("scopes learnings per repo", async () => {
+    const store = createHuntStore("");
+    await store.saveLearning(lrn("l1", "repo A rule"));
+    await store.saveLearning({ ...lrn("l2", "repo B rule"), repo: "other/repo" });
+    expect((await store.listLearnings("acme/app")).map((l) => l.id)).toEqual(["l1"]);
+    expect((await store.listLearnings("OTHER/REPO")).map((l) => l.id)).toEqual(["l2"]);
+  });
+
+  it("deletes a learning only from its own repo", async () => {
+    const store = createHuntStore("");
+    await store.saveLearning(lrn("l1", "rule"));
+    expect(await store.deleteLearning("other/repo", "l1")).toBe(false);
+    expect(await store.deleteLearning("acme/app", "l1")).toBe(true);
+    expect(await store.listLearnings("acme/app")).toEqual([]);
+  });
+});
