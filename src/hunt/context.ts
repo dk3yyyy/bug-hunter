@@ -1,4 +1,4 @@
-// Context builder (SPEC §11 step 5). Changed-file content at head, truncated,
+// Context builder. Changed-file content at head, truncated,
 // plus 1-hop local imports (Step 3). Guidelines come from the BASE branch
 // separately and are passed as repoRules.
 import type { Octokit } from "@octokit/rest";

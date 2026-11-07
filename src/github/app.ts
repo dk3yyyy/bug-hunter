@@ -1,4 +1,4 @@
-// GitHub App auth + install-flow helpers (SPEC §6, Step 4: one-click App install).
+// GitHub App auth + install-flow helpers.
 // The App client is built lazily and cached; the private key comes from the inline
 // GITHUB_PRIVATE_KEY env var when set (Render/Railway/Fly secrets), otherwise from
 // the PEM file pointed at by GITHUB_PRIVATE_KEY_PATH. Key content must never appear
@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
 import { env } from "../env";
+import { store } from "../store";
 
 /**
  * The "Connect a repo" install URL for a GitHub App (CodeRabbit/Greptile style).
@@ -99,20 +100,17 @@ export async function installationOctokit(installationId: number): Promise<Octok
 }
 
 // ---------------------------------------------------------------------------
-// In-memory record of which repos are currently installed. Honest note: this is
-// process-local only and resets on restart; full persistence (a DB) is out of
-// scope. It exists so the install webhooks can reflect the connected repos.
+// Repos the GitHub App is installed on. Stored in the hunt store (Postgres when
+// DATABASE_URL is set) so /summoned and diagnostics survive a restart.
 // ---------------------------------------------------------------------------
-const connectedRepos = new Set<string>();
-
-export function addRepo(fullName: string): void {
-  connectedRepos.add(fullName);
+export async function addRepo(fullName: string): Promise<void> {
+  await store().addInstalledRepo(fullName);
 }
 
-export function removeRepo(fullName: string): void {
-  connectedRepos.delete(fullName);
+export async function removeRepo(fullName: string): Promise<void> {
+  await store().removeInstalledRepo(fullName);
 }
 
-export function listRepos(): string[] {
-  return [...connectedRepos];
+export async function listRepos(): Promise<string[]> {
+  return store().listInstalledRepos();
 }

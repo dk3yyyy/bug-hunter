@@ -1,4 +1,4 @@
-// GitHub REST calls used by the hunt (SPEC §6, §11).
+// GitHub REST calls used by the hunt.
 import type { Octokit } from "@octokit/rest";
 import { parsePatch } from "../diff/parse";
 import { findingMarkerRegex, seanceMarker } from "../render/theme";
@@ -149,7 +149,7 @@ export interface InlineComment {
   start_side?: "RIGHT";
 }
 
-/** ONE pulls.createReview with the given inline comments (SPEC §11, Step 3). */
+/** ONE pulls.createReview with the given inline comments. */
 export async function postInlineReview(
   octokit: Octokit,
   owner: string,
@@ -366,7 +366,7 @@ export async function replyToReviewComment(
   return data.id;
 }
 
-/** Set a commit status (Option A can't create check runs) — SPEC §6, §13.3. Non-critical: never throws. */
+/** Set a commit status (Option A can't create check runs). Non-critical: never throws. */
 export async function setCommitStatus(
   octokit: Octokit,
   owner: string,

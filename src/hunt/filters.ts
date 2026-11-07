@@ -16,7 +16,7 @@ const BUILD_DIRS = new Set(["dist", "build", "vendor", "node_modules"]);
 const GENERATED_RE = /(auto-?generated|@generated|DO NOT EDIT)/i;
 
 /**
- * Priority used to sort eligible files before the 40-file cap (SPEC §11 step 2):
+ * Priority used to sort eligible files before the 40-file cap:
  * source (1) > tests (2) > config (3) > docs (4).
  */
 function priority(f: ChangedFile): number {
@@ -65,7 +65,7 @@ function skipReason(f: ChangedFile): string | null {
 /**
  * Filter changed files: drop lockfiles, build/vendor dirs, minified/source-map
  * files, binaries, and auto-generated files; then order the survivors by
- * priority and cap at 40 (SPEC §11 step 2).
+ * priority and cap at 40.
  */
 export function filterFiles(files: ChangedFile[]): {
   kept: ChangedFile[];

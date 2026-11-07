@@ -1,4 +1,4 @@
-// Unit tests for the GitHub App install-flow helpers (SPEC §6, Step 4).
+// Unit tests for the GitHub App install-flow helpers.
 // No network — installUrl is pure and the connectedRepos helpers are in-memory.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,32 +52,39 @@ describe("connectUrlFor", () => {
 });
 
 describe("connectedRepos", () => {
-  beforeEach(() => {
-    for (const repo of listRepos()) removeRepo(repo);
+  beforeEach(async () => {
+    for (const repo of await listRepos()) await removeRepo(repo);
   });
 
-  it("starts empty", () => {
-    expect(listRepos()).toEqual([]);
+  it("starts empty", async () => {
+    expect(await listRepos()).toEqual([]);
   });
 
-  it("adds repos and lists them (deduplicated)", () => {
-    addRepo("me/repo");
-    addRepo("me/repo"); // Set semantics: no duplicate entries
-    addRepo("you/other");
-    expect(listRepos().sort()).toEqual(["me/repo", "you/other"]);
+  it("adds repos and lists them (deduplicated)", async () => {
+    await addRepo("me/repo");
+    await addRepo("me/repo"); // Set semantics: no duplicate entries
+    await addRepo("you/other");
+    expect((await listRepos()).sort()).toEqual(["me/repo", "you/other"]);
   });
 
-  it("removes a repo", () => {
-    addRepo("me/repo");
-    addRepo("you/other");
-    removeRepo("me/repo");
-    expect(listRepos()).toEqual(["you/other"]);
+  it("removes a repo", async () => {
+    await addRepo("me/repo");
+    await addRepo("you/other");
+    await removeRepo("me/repo");
+    expect(await listRepos()).toEqual(["you/other"]);
   });
 
-  it("listRepos returns a copy, not the live set", () => {
-    addRepo("me/repo");
-    const snapshot = listRepos();
+  it("listRepos returns a copy, not the live list", async () => {
+    await addRepo("me/repo");
+    const snapshot = await listRepos();
     snapshot.push("fake/repo");
-    expect(listRepos()).toEqual(["me/repo"]);
+    expect(await listRepos()).toEqual(["me/repo"]);
+  });
+
+  it("is case-insensitive", async () => {
+    await addRepo("Me/Repo");
+    expect(await listRepos()).toEqual(["me/repo"]);
+    await removeRepo("ME/REPO");
+    expect(await listRepos()).toEqual([]);
   });
 });

@@ -1,5 +1,4 @@
 // Bug Hunter server — Hono app, webhook ingress, manual trigger, in-process queue.
-// (SPEC §4, §8, §11, §16.4)
 import { serve } from "@hono/node-server";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Hono, type Context } from "hono";
@@ -67,9 +66,9 @@ const webhooks = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET });
 const queue = new PQueue({ concurrency: 2 });
 
 const seenDeliveries = new BoundedSet(5000);
-const rateLimiter = new HuntRateLimiter(10, 60 * 60 * 1000); // SPEC §17: max 10 hunts per PR per hour
+const rateLimiter = new HuntRateLimiter(10, 60 * 60 * 1000); // max 10 hunts per PR per hour
 
-/** Thrown when a PR has used up its hunts for the hour (SPEC §17). */
+/** Thrown when a PR has used up its hunts for the hour. */
 export class HuntRateLimitedError extends Error {
   override name = "HuntRateLimitedError";
 }
@@ -404,7 +403,7 @@ async function runHuntForPrInner(
   // Re-fetch current state; drop closed/draft/stale before spending.
   const pr = await api.getPr(octokit, owner, repo, prNumber);
   if (pr.state !== "open" || pr.draft) return null;
-  // Stale event (SPEC §8): the head moved since this webhook fired. The newer
+  // Stale event: the head moved since this webhook fired. The newer
   // push has its own (debounced) synchronize event, so skip this one.
   if (expectedHeadSha && expectedHeadSha !== pr.headSha) return null;
 
@@ -510,7 +509,7 @@ async function huntOpenPr(
   const repoRules = await readGuidelines(octokit, owner, repo, pr.baseRef);
 
   // Only hunted files reach the model: lockfiles, generated, vendored, minified,
-  // binary and over-limit files are filtered out here (SPEC §11 step 2). The
+  // binary and over-limit files are filtered out here. The
   // pipeline still receives every file so it can list skips in the Graveyard.
   const { kept: huntedFiles, skipped: skippedFiles } = filterFiles(files);
 
@@ -521,7 +520,7 @@ async function huntOpenPr(
     return nothingToHunt(octokit, owner, repo, prNumber, pr, skippedFiles, huntId);
   }
 
-  // Input budget (~30k tokens, SPEC §11 step 5): the diff gets priority,
+  // Input budget (~30k tokens, step 5): the diff gets priority,
   // context is trimmed to whatever is left.
   const fullDiff = annotateDiff(huntedFiles).text;
   const { diffMaxChars, contextMaxChars } = planBudget(fullDiff.length);
@@ -731,7 +730,7 @@ async function huntOpenPr(
 }
 
 // ---------------------------------------------------------------------------
-// Webhook routing (SPEC §8): enqueue only, respond fast. synchronize debounced.
+// Webhook routing: enqueue only, respond fast. synchronize debounced.
 // ---------------------------------------------------------------------------
 webhooks.on(
   [
@@ -958,11 +957,11 @@ webhooks.on("installation", async ({ id, payload }) => {
   if (!rememberDelivery(id)) return;
   const account = p.installation?.account?.login;
   if (p.action === "created") {
-    for (const r of p.repositories ?? []) addRepo(r.full_name);
+    for (const r of p.repositories ?? []) await addRepo(r.full_name);
     console.log("app installed", { account, repos: (p.repositories ?? []).length });
   } else if (p.action === "deleted") {
     if (account) {
-      for (const repo of listRepos()) {
+      for (const repo of await listRepos()) {
         if (repo.startsWith(`${account}/`)) removeRepo(repo);
       }
     }
@@ -973,8 +972,8 @@ webhooks.on("installation", async ({ id, payload }) => {
 webhooks.on("installation_repositories", async ({ id, payload }) => {
   const p = payload as InstallPayload;
   if (!rememberDelivery(id)) return;
-  for (const r of p.repositories_added ?? []) addRepo(r.full_name);
-  for (const r of p.repositories_removed ?? []) removeRepo(r.full_name);
+  for (const r of p.repositories_added ?? []) await addRepo(r.full_name);
+  for (const r of p.repositories_removed ?? []) await removeRepo(r.full_name);
   console.log("app repositories changed", {
     action: p.action,
     added: (p.repositories_added ?? []).length,
@@ -1135,7 +1134,7 @@ app.post("/webhooks/github", async (c) => {
   }
 });
 
-// Manual trigger (SPEC §16.4 Workflow 3 + instant testing): POST /api/hunt
+// Manual trigger: POST /api/hunt
 //   { "pr_url": "https://github.com/o/r/pull/N" } or { "owner", "repo", "pr" }
 app.post("/api/hunt", async (c) => {
   if (!isAuthorized(c)) {
@@ -1402,8 +1401,8 @@ app.get("/dashboard", async (c) => {
     }),
   );
 });
-app.get("/summoned", (c) =>
-  c.html(renderSummoned(listRepos(), c.req.query("installation_id"))),
+app.get("/summoned", async (c) =>
+  c.html(renderSummoned(await listRepos(), c.req.query("installation_id"))),
 );
 
 // Only start the server when this file is run directly (not when imported by tests).

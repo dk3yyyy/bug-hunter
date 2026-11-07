@@ -1,4 +1,4 @@
-// Structured-output helpers (SPEC §10).
+// Structured-output helpers.
 // Wraps the AI SDK's generateObject with retry + one-shot JSON repair.
 // Never logs or includes API keys anywhere.
 
@@ -158,7 +158,7 @@ export async function generateStructured<T>(opts: {
     }
   }
 
-  // One-shot repair (SPEC §10): ask for raw JSON again, including the validation
+  // One-shot repair: ask for raw JSON again, including the validation
   // error from the failed attempt, then parse + validate ourselves.
   try {
     const hint = validationHint(lastError);

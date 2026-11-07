@@ -1,5 +1,5 @@
 // Shared domain types and Zod schemas for Bug Hunter.
-// Every module imports from here so the pieces line up (SPEC §0.4).
+// Every module imports from here so the pieces line up.
 
 import { z } from "zod";
 

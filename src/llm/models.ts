@@ -1,4 +1,4 @@
-// Model routing (SPEC §10 + multi-provider BYO key). Thin wrapper over config.ts.
+// Model routing. Thin wrapper over config.ts.
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";

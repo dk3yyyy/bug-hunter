@@ -1,5 +1,5 @@
 #!/usr/bin/env -S npx tsx
-// Command-line interface for Bug Hunter (SPEC §16.4: run the hunt without GitHub).
+// Command-line interface for Bug Hunter.
 //
 // The CLI reuses the real pipeline (parsePatch → filterFiles → runHunt) but
 // takes its input from local git instead of the GitHub API. Two deliberate

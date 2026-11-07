@@ -1,4 +1,4 @@
-// Outgoing hunt.completed event to n8n (SPEC §16.1). Fire-and-forget, never throws.
+// Outgoing hunt.completed event to n8n. Fire-and-forget, never throws.
 import { env } from "./env";
 import { scrubSecrets } from "./security";
 import type { HuntCounts } from "./types";

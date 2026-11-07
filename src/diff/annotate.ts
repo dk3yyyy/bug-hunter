@@ -1,4 +1,4 @@
-// Annotated diff renderer for the model (SPEC §9.2).
+// Annotated diff renderer for the model.
 // Never send raw diffs: emit explicit new-file line numbers on `+` and context
 // lines, and show removed lines unnumbered in an `__old hunk__` block.
 

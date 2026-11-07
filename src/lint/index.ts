@@ -1,4 +1,4 @@
-// Deterministic, local linters for the AI reviewer (SPEC §17).
+// Deterministic, local linters for the AI reviewer.
 //
 // Given the changed files of a PR (path + unified-diff patch), run whichever of
 // gitleaks / semgrep / eslint is installed, normalize their output, and return

@@ -125,8 +125,11 @@ The haunting level is deterministic:
 | `src/env.ts` | Zod-validated environment at boot; platform URL derivation |
 | `src/auth.ts` | GitHub OAuth web flow: authorize URL, code exchange, refresh, user lookup |
 | `src/session.ts` | Sealed session cookies (AES-256-GCM) |
-| `src/tenancy.ts` | Which user authorised each repo, sealed in process memory |
-| `src/store.ts` | Hunt history: Postgres when `DATABASE_URL` is set, in-memory fallback otherwise |
+| `src/tenancy.ts` | Which user authorised each repo, sealed and stored in the hunt store |
+| `src/store.ts` | Hunt history, learnings, repo mappings and installed repos: Postgres + in-memory fallback |
+| `src/cost.ts` | Token accounting, model price table, spend caps |
+| `src/learnings.ts` | Reviewer corrections: parsing, normalisation, dedupe, prompt formatting |
+| `src/lint/` | Deterministic gitleaks/semgrep/eslint runner (CLI) |
 | `src/connect.ts` | Webhook URL rules and auto-connect helpers |
 | `src/github/` | Octokit clients, GitHub App auth and install flow, REST helpers, pure webhook filters |
 | `src/diff/` | Patch parsing, line mapping, annotated diff, commentable-line resolution |
@@ -169,29 +172,31 @@ hashes. This path is intended for scripts and automation.
 When a signed-in user connects a repo, Bug Hunter remembers that user for the repo
 in `src/tenancy.ts`, sealed with the session key. Later webhook hunts for that repo
 use the user's token, so GitHub enforces their permissions and the review is
-attributed to them. The mapping is process memory: a restart clears it and those
-repos fall back to the server token until reconnected. Hunt history can live in
-Postgres, but repo-user mappings deliberately stay in process memory, sealed and
-never written to the database.
+attributed to them. The mapping lives in the hunt store: Postgres when
+`DATABASE_URL` is set (sealed with AES-256-GCM, never plaintext), in memory
+otherwise. Without a mapping, a repo falls back to the server token.
 
 ## State
 
-State is bounded, and only hunt history can be durable:
+State is bounded; everything except rate-limit windows and delivery dedupe can be
+durable when `DATABASE_URL` is set:
 
 | State | Storage and bound |
 |---|---|
 | Hunt history | Postgres when `DATABASE_URL` is set; otherwise in memory, last 500 records |
 | Dashboard and `/api/hunts` | 50 most recent records from the same store |
+| Reviewer learnings | Postgres/in-memory, 50 per repo, newest 20 used per hunt |
+| Per-repo user mappings | Postgres/in-memory, sealed |
+| Installed repos | Postgres/in-memory |
 | Seen webhook deliveries | process memory, 5,000 ids |
 | Per-PR rate windows | process memory, one hour |
-| Per-repo user mappings | process memory, sealed, process lifetime |
 | In-flight hunts | process memory, one per PR |
 | Queue concurrency | 2 |
 
-With `DATABASE_URL`, `src/store.ts` creates a `hunts` table and index on first
-use if they do not exist. Each row stores the full hunt record as JSONB plus a
-`finished_at` timestamp. Without it, the same interface is backed by a bounded
-in-memory map.
+With `DATABASE_URL`, `src/store.ts` creates the `hunts`, `repo_connections`,
+`learnings` and `app_repos` tables on first use if they do not exist. Hunt rows
+store the full record as JSONB plus a `finished_at` timestamp. Without it, the same
+interface is backed by bounded in-memory maps.
 
 A restart always clears rate-limit windows and repo-user mappings, so reconnecting
 repos restores correct attribution. Hunt history survives a restart only when

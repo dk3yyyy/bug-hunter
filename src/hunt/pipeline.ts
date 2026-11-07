@@ -82,7 +82,7 @@ export interface HuntResult {
   hiddenContent: string[];
   /** Anchored findings: posted in "Spirits found", inline, and counted in the haunting level. */
   kept: KeptFinding[];
-  /** Real findings that could not be anchored to a changed line (SPEC §9.3). Report-only, not counted. */
+  /** Real findings that could not be anchored to a changed line. Report-only, not counted. */
   lurking: KeptFinding[];
   /** True when the verifier call failed and candidates were kept unverified (no suggestions). */
   verifierFailed: boolean;
@@ -103,7 +103,7 @@ const SEVERITY_RANK: Record<string, number> = {
 };
 
 /**
- * Haunting level from the kept findings (SPEC §3.4). "only cobwebs/candy" maps
+ * Haunting level from the kept findings. "only cobwebs/candy" maps
  * to whispers: we treat `low` (cobweb) and `nitpick` (candy) as that tier.
  */
 export function computeHaunting(
@@ -236,7 +236,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     return b.adjusted_confidence - a.adjusted_confidence;
   });
 
-  // Unanchored findings go to "Lurking outside the diff" only (SPEC §9.3):
+  // Unanchored findings go to "Lurking outside the diff" only:
   // not in "Spirits found", not inline, not counted in the haunting level.
   const lurking = sorted.filter((k) => !k.position).slice(0, MAX_LURKING);
 

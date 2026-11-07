@@ -1,4 +1,4 @@
-// GitHub auth (SPEC §6). PAT mode (Option A) or GitHub App mode (Step 4).
+// GitHub auth. PAT mode (Option A) or GitHub App mode (Step 4).
 // Nothing else in the codebase should care which option is in use.
 import { Octokit } from "@octokit/rest";
 import { env } from "../env";

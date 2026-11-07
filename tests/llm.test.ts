@@ -1,4 +1,4 @@
-// Unit tests for the pure LLM-layer helpers (SPEC §10).
+// Unit tests for the pure LLM-layer helpers.
 // No network access; only isRetryable, backoffMs and repairJson are exercised.
 
 import { describe, it, expect, vi } from "vitest";

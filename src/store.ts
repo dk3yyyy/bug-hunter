@@ -22,6 +22,10 @@ export interface HuntStore {
   /** Newest learnings across every repo (dashboard). */
   recentLearnings(limit: number): Promise<Learning[]>;
   deleteLearning(repo: string, id: string): Promise<boolean>;
+  /** Repos the GitHub App is installed on (survives restarts). */
+  addInstalledRepo(repo: string): Promise<void>;
+  removeInstalledRepo(repo: string): Promise<void>;
+  listInstalledRepos(): Promise<string[]>;
   close(): Promise<void>;
 }
 
@@ -95,6 +99,20 @@ class MemoryHuntStore implements HuntStore {
       .slice(0, limit);
   }
 
+  private installedRepos = new Set<string>();
+
+  async addInstalledRepo(repo: string): Promise<void> {
+    this.installedRepos.add(repo.toLowerCase());
+  }
+
+  async removeInstalledRepo(repo: string): Promise<void> {
+    this.installedRepos.delete(repo.toLowerCase());
+  }
+
+  async listInstalledRepos(): Promise<string[]> {
+    return [...this.installedRepos].sort();
+  }
+
   async deleteLearning(repo: string, id: string): Promise<boolean> {
     const key = repo.toLowerCase();
     const current = this.learningsByRepo.get(key) ?? [];
@@ -140,7 +158,11 @@ class PgHuntStore implements HuntStore {
              source_url TEXT,
              created_at TIMESTAMPTZ NOT NULL
            );
-           CREATE INDEX IF NOT EXISTS learnings_repo_idx ON learnings (repo, created_at DESC);`,
+           CREATE INDEX IF NOT EXISTS learnings_repo_idx ON learnings (repo, created_at DESC);
+           CREATE TABLE IF NOT EXISTS app_repos (
+             repo TEXT PRIMARY KEY,
+             added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+           );`,
         )
         .then(() => undefined)
         .catch((e) => {
@@ -289,6 +311,27 @@ class PgHuntStore implements HuntStore {
       id,
     ]);
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async addInstalledRepo(repo: string): Promise<void> {
+    await this.ensure();
+    await this.pool.query(
+      "INSERT INTO app_repos (repo) VALUES ($1) ON CONFLICT (repo) DO NOTHING",
+      [repo.toLowerCase()],
+    );
+  }
+
+  async removeInstalledRepo(repo: string): Promise<void> {
+    await this.ensure();
+    await this.pool.query("DELETE FROM app_repos WHERE repo = $1", [repo.toLowerCase()]);
+  }
+
+  async listInstalledRepos(): Promise<string[]> {
+    await this.ensure();
+    const { rows } = await this.pool.query<{ repo: string }>(
+      "SELECT repo FROM app_repos ORDER BY repo",
+    );
+    return rows.map((r) => r.repo);
   }
 
   async recentLearnings(limit: number): Promise<Learning[]> {

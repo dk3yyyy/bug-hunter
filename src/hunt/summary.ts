@@ -1,6 +1,6 @@
 import type { SeanceOutputT } from "../types";
 
-/** A safe default summary used when the Séance pass fails (SPEC §11 step 10). */
+/** A safe default summary used when the Séance pass fails. */
 export function emptySeance(): SeanceOutputT {
   return {
     summary: "",
