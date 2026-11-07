@@ -5,9 +5,13 @@
   "type": "module",
   "description": "Bug Hunter — open-source AI PR reviewer. Bring your own model; every PR gets verified findings, inline fixes and a themed Séance Report.",
   "license": "MIT",
+  "bin": {
+    "bughunter": "./src/cli.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "check:models": "tsx scripts/check-models.ts",
     "build:landing": "node scripts/build-landing.mjs",
