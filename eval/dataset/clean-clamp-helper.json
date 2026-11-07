@@ -1,0 +1,7 @@
+{
+  "id": "clean-clamp-helper",
+  "name": "Implement clamp and add an isInRange helper",
+  "diff": "diff --git a/src/utils/math.ts b/src/utils/math.ts\nindex 333cccc..444dddd 100644\n--- a/src/utils/math.ts\n+++ b/src/utils/math.ts\n@@ -1,3 +1,9 @@\n export function clamp(value: number, min: number, max: number): number {\n-  return value;\n+  if (value < min) return min;\n+  if (value > max) return max;\n+  return value;\n }\n+\n+export function isInRange(value: number, min: number, max: number): boolean {\n+  return value >= min && value <= max;\n+}\n",
+  "golden": [],
+  "clean": true
+}

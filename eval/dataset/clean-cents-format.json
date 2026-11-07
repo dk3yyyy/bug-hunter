@@ -1,0 +1,7 @@
+{
+  "id": "clean-cents-format",
+  "name": "Format an integer cents value as dollars",
+  "diff": "diff --git a/src/utils/money.ts b/src/utils/money.ts\nindex 111aaaa..222bbbb 100644\n--- a/src/utils/money.ts\n+++ b/src/utils/money.ts\n@@ -1,3 +1,7 @@\n export function formatCents(cents: number): string {\n-  return `${cents / 100}`;\n+  const sign = cents < 0 ? \"-\" : \"\";\n+  const abs = Math.abs(cents);\n+  const dollars = Math.floor(abs / 100);\n+  const remainder = String(abs % 100).padStart(2, \"0\");\n+  return `${sign}$${dollars}.${remainder}`;\n }\n",
+  "golden": [],
+  "clean": true
+}

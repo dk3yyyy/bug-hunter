@@ -1,0 +1,15 @@
+{
+  "id": "divide-by-zero",
+  "name": "Compute the average of a list of values",
+  "diff": "diff --git a/src/stats/average.ts b/src/stats/average.ts\nindex bbbeeee..ccfffff 100644\n--- a/src/stats/average.ts\n+++ b/src/stats/average.ts\n@@ -1,7 +1,8 @@\n export function average(values: number[]): number {\n   let total = 0;\n   for (const v of values) {\n     total += v;\n   }\n-  return total / values.length;\n+  const avg = total / values.length;\n+  return avg;\n }\n",
+  "golden": [
+    {
+      "file": "src/stats/average.ts",
+      "line": 6,
+      "severity": "medium",
+      "title": "Division by zero when values is empty",
+      "category": "bug"
+    }
+  ],
+  "clean": false
+}

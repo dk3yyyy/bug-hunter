@@ -1,0 +1,15 @@
+{
+  "id": "null-deref",
+  "name": "Render a display name for an optional user",
+  "diff": "diff --git a/src/users/profile.ts b/src/users/profile.ts\nnew file mode 100644\nindex 0000000..dddeeee\n--- /dev/null\n+++ b/src/users/profile.ts\n@@ -0,0 +1,8 @@\n+import type { User } from \"./types\";\n+\n+export function displayName(user: User | null): string {\n+  const profile = user.profile;\n+  const first = profile.firstName;\n+  const last = profile.lastName;\n+  return `${first} ${last}`.trim();\n+}\n",
+  "golden": [
+    {
+      "file": "src/users/profile.ts",
+      "line": 4,
+      "severity": "high",
+      "title": "Null dereference on a nullable user",
+      "category": "bug"
+    }
+  ],
+  "clean": false
+}

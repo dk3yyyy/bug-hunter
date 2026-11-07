@@ -1,0 +1,15 @@
+{
+  "id": "missing-await",
+  "name": "Load a user by id with an audit trail",
+  "diff": "diff --git a/src/api/users.ts b/src/api/users.ts\nindex 555eeee..666ffff 100644\n--- a/src/api/users.ts\n+++ b/src/api/users.ts\n@@ -1,5 +1,10 @@\n import { db, logAudit } from \"../db\";\n \n export async function getUser(id: string) {\n-  return db.findUser(id);\n+  const user = db.findUser(id);\n+  if (!user) {\n+    throw new Error(\"user not found\");\n+  }\n+  await logAudit(\"user.read\", { id });\n+  return user;\n }\n",
+  "golden": [
+    {
+      "file": "src/api/users.ts",
+      "line": 4,
+      "severity": "high",
+      "title": "Missing await on db.findUser",
+      "category": "bug"
+    }
+  ],
+  "clean": false
+}
