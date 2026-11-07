@@ -1,5 +1,5 @@
-// Prompt input budget (SPEC §11 step 5: cap context at ~30k tokens, chars / 3.5)
-// and the per-PR hunt rate limit (SPEC §17: max 10 hunts per PR per hour).
+// Prompt input budget (cap context at ~30k tokens, chars / 3.5) and the
+// per-PR hunt rate limit (max 10 hunts per PR per hour).
 // Pure functions: no env, no network — fully unit-testable.
 
 /** ~30k tokens at 3.5 chars/token. Shared by the annotated diff and the context. */

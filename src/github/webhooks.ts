@@ -1,4 +1,4 @@
-// Pure webhook event-filtering helpers (SPEC §8). No octokit, no env — fully unit-testable.
+// Pure webhook event-filtering helpers. No octokit, no env — fully unit-testable.
 
 export interface PrWebhookPayload {
   action?: string;

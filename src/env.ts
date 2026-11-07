@@ -1,4 +1,4 @@
-// Environment configuration, zod-validated at boot (SPEC §5).
+// Environment configuration, zod-validated at boot.
 // Never log or print any value; only names appear in error messages.
 
 import { z } from "zod";

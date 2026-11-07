@@ -20,3 +20,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Deterministic: runs the real pipeline with a mock provider, no key/network.
+      - run: npx tsx eval/run.ts

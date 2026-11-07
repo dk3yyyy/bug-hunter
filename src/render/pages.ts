@@ -218,7 +218,7 @@ export function renderSummoned(repos: string[] = [], installationId?: string): s
   );
 }
 
-/** Connect page: hunt a PR now or connect a repo for automatic hunts (SPEC §6, §7). */
+/** Connect page: hunt a PR now or connect a repo for automatic hunts. */
 export function renderConnect(opts: {
   publicUrl: string;
   botHandle: string;

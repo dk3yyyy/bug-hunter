@@ -1,4 +1,4 @@
-// Secret scrubber (SPEC §17). Applied to everything posted to GitHub or sent to n8n.
+// Secret scrubber. Applied to everything posted to GitHub or sent to n8n.
 
 // Each entry is [pattern, replacement]. The generic assignment pattern keeps
 // the key name and redacts only the value, so the report stays readable.

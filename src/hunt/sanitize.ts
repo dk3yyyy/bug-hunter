@@ -1,6 +1,6 @@
 /**
  * Instruction-like words found inside hidden content (HTML comments), indicating
- * a "possession attempt" aimed at the AI reviewer (SPEC §17 / §11 step 4).
+ * a "possession attempt" aimed at the AI reviewer.
  * Deliberately narrow: bare words like "reviewer" or "ai" matched too much
  * (e.g. `<!-- ai-generated with cursor -->` forced a do-not-merge verdict).
  */

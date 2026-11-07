@@ -27,8 +27,8 @@ the opposite position:
 - **Bring your own model.** Point it at the provider you already pay for, or run a
   local model through Ollama.
 - **Keep the code path yours.** Diffs go from your server to your model provider.
-  Hunt history is in memory by default; set `DATABASE_URL` to persist it in your
-  own Postgres.
+  Set `DATABASE_URL` to keep hunt history, repo auth mappings and reviewer
+  learnings in your own Postgres; otherwise they stay in memory.
 - **Say less, mean more.** A verifier pass drops weak candidates before they reach
   the report. Every finding has a location, evidence, and an honest confidence
   number.

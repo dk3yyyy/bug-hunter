@@ -1,4 +1,4 @@
-// Unified-diff hunk parser (SPEC §9.1).
+// Unified-diff hunk parser.
 // Walks a single file's `patch` string, starts a hunk on each `@@` header, and
 // assigns old/new file line numbers as `-`, `+` and context lines are consumed.
 // `\ No newline at end of file` markers are ignored.

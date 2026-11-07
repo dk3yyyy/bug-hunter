@@ -1,4 +1,4 @@
-// Token accounting and USD cost estimation (SPEC §12 cost controls).
+// Token accounting and USD cost estimation.
 // Pure functions: no env, no network — fully unit-testable. Prices are rough
 // public list prices as of 2026-11; see docs/COSTS.md for caveats.
 

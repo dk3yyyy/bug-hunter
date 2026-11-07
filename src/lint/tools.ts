@@ -1,4 +1,4 @@
-// Thin, dependency-free helpers for the deterministic linter runner (SPEC §17).
+// Thin, dependency-free helpers for the deterministic linter runner.
 // Everything here is pure or nearly pure so it can be unit-tested without the
 // real gitleaks/semgrep/eslint binaries: exec, availability probe, JSON parsers,
 // path normalization and severity mapping.

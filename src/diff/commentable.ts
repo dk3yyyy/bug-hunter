@@ -1,4 +1,4 @@
-// Commentable-line map + finding position resolution (SPEC §9.3).
+// Commentable-line map + finding position resolution.
 
 import type { ChangedFile, ResolvedPosition } from "../types";
 

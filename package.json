@@ -16,7 +16,8 @@
     "check:models": "tsx scripts/check-models.ts",
     "build:landing": "node scripts/build-landing.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval": "tsx eval/run.ts"
   },
   "engines": {
     "node": ">=22"

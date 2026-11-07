@@ -1,4 +1,4 @@
-// Diff engine tests (SPEC §9): parsePatch, annotateDiff, commentableMap,
+// Diff engine tests: parsePatch, annotateDiff, commentableMap,
 // resolvePosition. Exercises the §9.3 acceptance list.
 
 import { describe, expect, it } from "vitest";
