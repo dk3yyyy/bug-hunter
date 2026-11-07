@@ -9,5 +9,7 @@ export function emptySeance(): SeanceOutputT {
     risk_areas: [],
     effort: 3,
     spooky_tagline: "",
+    sequence_diagram: null,
+    issue_compliance: [],
   };
 }

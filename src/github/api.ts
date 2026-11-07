@@ -64,6 +64,21 @@ export async function listFiles(
   return files;
 }
 
+/** A GitHub issue's title/body, or null when it does not exist. */
+export async function getIssue(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<{ title: string; body: string } | null> {
+  try {
+    const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber });
+    return { title: data.title ?? "", body: data.body ?? "" };
+  } catch {
+    return null;
+  }
+}
+
 /** File content at a ref (base-branch guidelines, head context). Null when absent/not a file. */
 export async function getFileContent(
   octokit: Octokit,

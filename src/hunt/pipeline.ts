@@ -62,6 +62,8 @@ export interface HuntInput {
   headSha: string;
   prTitle: string;
   prBody: string;
+  /** Prompt-ready list of linked issues/tickets, or "(none)". */
+  linkedIssues?: string;
   files: ChangedFile[];
   repoRules: string;
   context: string; // already-built context text
@@ -145,6 +147,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     pr_title: cleanTitle,
     pr_body: cleanBody,
     hidden_content_or_none: hiddenContent.length ? hiddenContent.join("\n---\n") : "(none)",
+    linked_issues: input.linkedIssues?.trim() || "(none)",
     context: input.context,
     annotated_diff: input.annotatedDiff,
   };
@@ -270,6 +273,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
       summary_hint: notes.join("\n"),
       context: input.context,
       repo_rules: input.repoRules,
+      linked_issues: input.linkedIssues?.trim() || "(none)",
     });
     summary = await deps.seance({ system: "", user: seancePrompt });
   } catch (e) {

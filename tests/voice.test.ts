@@ -88,6 +88,7 @@ describe("prompts", () => {
       pr_title: "t",
       pr_body: "b",
       hidden_content_or_none: "(none)",
+      linked_issues: "(none)",
       context: "c",
       annotated_diff: "d",
     });
@@ -112,6 +113,7 @@ describe("prompts", () => {
       summary_hint: "",
       changed_files_list: "a.ts",
       annotated_diff: "d",
+      linked_issues: "(none)",
     });
     expect(filled).not.toMatch(/\{\{[^}]+\}\}/);
   });
