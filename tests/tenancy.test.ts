@@ -10,86 +10,89 @@ import {
   resetRepoConnections,
 } from "../src/tenancy";
 
+// Force the in-memory store for these tests.
+delete process.env.DATABASE_URL;
+
 const SECRET = "tenancy-secret-under-test";
 
-function remember(repo: string, login: string, token = `gho_${login}`): void {
-  rememberRepoConnection(repo, { login, token }, SECRET);
+async function remember(repo: string, login: string, token = `gho_${login}`): Promise<void> {
+  await rememberRepoConnection(repo, { login, token }, SECRET);
 }
 
-beforeEach(() => {
-  resetRepoConnections();
+beforeEach(async () => {
+  await resetRepoConnections();
 });
 
 describe("repo connections", () => {
-  it("round-trips the user behind a repo", () => {
-    remember("dk3yyyy/bug-hunter", "dk3yyyy", "gho_abc123");
-    expect(recallRepoConnection("dk3yyyy/bug-hunter", SECRET)).toEqual({
+  it("round-trips the user behind a repo", async () => {
+    await remember("dk3yyyy/bug-hunter", "dk3yyyy", "gho_abc123");
+    expect(await recallRepoConnection("dk3yyyy/bug-hunter", SECRET)).toEqual({
       login: "dk3yyyy",
       token: "gho_abc123",
     });
   });
 
-  it("keeps repos isolated from each other", () => {
-    remember("alice/project", "alice");
-    remember("bob/project", "bob");
-    expect(recallRepoConnection("alice/project", SECRET)?.login).toBe("alice");
-    expect(recallRepoConnection("bob/project", SECRET)?.login).toBe("bob");
+  it("keeps repos isolated from each other", async () => {
+    await remember("alice/project", "alice");
+    await remember("bob/project", "bob");
+    expect((await recallRepoConnection("alice/project", SECRET))?.login).toBe("alice");
+    expect((await recallRepoConnection("bob/project", SECRET))?.login).toBe("bob");
     // Same repo name, different owner: must not collide.
-    expect(recallRepoConnection("alice/project", SECRET)?.token).toBe("gho_alice");
+    expect((await recallRepoConnection("alice/project", SECRET))?.token).toBe("gho_alice");
   });
 
-  it("is case-insensitive on the repo name", () => {
-    remember("Alice/Project", "alice");
-    expect(recallRepoConnection("alice/project", SECRET)?.login).toBe("alice");
-    expect(recallRepoConnection("ALICE/PROJECT", SECRET)?.login).toBe("alice");
+  it("is case-insensitive on the repo name", async () => {
+    await remember("Alice/Project", "alice");
+    expect((await recallRepoConnection("alice/project", SECRET))?.login).toBe("alice");
+    expect((await recallRepoConnection("ALICE/PROJECT", SECRET))?.login).toBe("alice");
   });
 
-  it("returns null for a repo nobody connected", () => {
-    expect(recallRepoConnection("stranger/repo", SECRET)).toBeNull();
+  it("returns null for a repo nobody connected", async () => {
+    expect(await recallRepoConnection("stranger/repo", SECRET)).toBeNull();
   });
 
-  it("rejects a mapping sealed under a different secret", () => {
-    remember("alice/project", "alice");
+  it("rejects a mapping sealed under a different secret", async () => {
+    await remember("alice/project", "alice");
     // A rotated SESSION_SECRET must not silently decrypt to a usable token.
-    expect(recallRepoConnection("alice/project", "rotated-secret")).toBeNull();
+    expect(await recallRepoConnection("alice/project", "rotated-secret")).toBeNull();
   });
 
-  it("treats an expired mapping as absent", () => {
-    remember("alice/project", "alice");
+  it("treats an expired mapping as absent", async () => {
+    await remember("alice/project", "alice");
     const farFuture = Date.now() + 400 * 24 * 60 * 60 * 1000;
-    expect(recallRepoConnection("alice/project", SECRET, farFuture)).toBeNull();
+    expect(await recallRepoConnection("alice/project", SECRET, farFuture)).toBeNull();
   });
 
-  it("replaces the mapping when a different user reconnects", () => {
-    remember("shared/repo", "alice");
-    remember("shared/repo", "bob");
-    expect(recallRepoConnection("shared/repo", SECRET)?.login).toBe("bob");
-    expect(repoConnectionCount()).toBe(1);
+  it("replaces the mapping when a different user reconnects", async () => {
+    await remember("shared/repo", "alice");
+    await remember("shared/repo", "bob");
+    expect((await recallRepoConnection("shared/repo", SECRET))?.login).toBe("bob");
+    expect(await repoConnectionCount()).toBe(1);
   });
 
-  it("forgets a repo", () => {
-    remember("alice/project", "alice");
-    expect(forgetRepoConnection("ALICE/project")).toBe(true);
-    expect(recallRepoConnection("alice/project", SECRET)).toBeNull();
-    expect(forgetRepoConnection("alice/project")).toBe(false);
+  it("forgets a repo", async () => {
+    await remember("alice/project", "alice");
+    expect(await forgetRepoConnection("ALICE/project")).toBe(true);
+    expect(await recallRepoConnection("alice/project", SECRET)).toBeNull();
+    expect(await forgetRepoConnection("alice/project")).toBe(false);
   });
 
-  it("preserves refresh fields for expiring tokens", () => {
+  it("preserves refresh fields for expiring tokens", async () => {
     const expiresAt = Date.now() + 28_800_000;
-    rememberRepoConnection(
+    await rememberRepoConnection(
       "alice/project",
       { login: "alice", token: "gho_short", expiresAt, refreshToken: "ghr_refresh" },
       SECRET,
     );
-    const conn = recallRepoConnection("alice/project", SECRET);
+    const conn = await recallRepoConnection("alice/project", SECRET);
     expect(conn?.expiresAt).toBe(expiresAt);
     expect(conn?.refreshToken).toBe("ghr_refresh");
   });
 
-  it("does not hand back a token for an unmapped repo after a reset", () => {
-    remember("alice/project", "alice");
-    resetRepoConnections();
-    expect(repoConnectionCount()).toBe(0);
-    expect(recallRepoConnection("alice/project", SECRET)).toBeNull();
+  it("does not hand back a token for an unmapped repo after a reset", async () => {
+    await remember("alice/project", "alice");
+    await resetRepoConnections();
+    expect(await repoConnectionCount()).toBe(0);
+    expect(await recallRepoConnection("alice/project", SECRET)).toBeNull();
   });
 });

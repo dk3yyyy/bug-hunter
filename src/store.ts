@@ -1,5 +1,5 @@
-// Hunt history. Postgres when DATABASE_URL is set, in-memory otherwise, so the
-// dashboard survives restarts in production without breaking local dev/test.
+// Persistence. Postgres when DATABASE_URL is set, in-memory otherwise, so
+// production survives restarts without breaking local dev/test.
 import { Pool } from "pg";
 import type { HuntRecord } from "./types";
 
@@ -7,29 +7,56 @@ export interface HuntStore {
   save(record: HuntRecord): Promise<void>;
   get(id: string): Promise<HuntRecord | null>;
   list(limit: number): Promise<HuntRecord[]>;
+  setConnection(repo: string, sealed: string): Promise<void>;
+  getConnection(repo: string): Promise<string | null>;
+  deleteConnection(repo: string): Promise<boolean>;
+  connectionCount(): Promise<number>;
+  /** Test/maintenance helper: drop every connection mapping. */
+  clearConnections(): Promise<void>;
   close(): Promise<void>;
 }
 
 const MAX_MEMORY = 500;
 
 class MemoryHuntStore implements HuntStore {
-  private readonly map = new Map<string, HuntRecord>();
+  private readonly hunts = new Map<string, HuntRecord>();
+  private readonly connections = new Map<string, string>();
 
   async save(record: HuntRecord): Promise<void> {
-    this.map.set(record.id, record);
-    while (this.map.size > MAX_MEMORY) {
-      const oldest = this.map.keys().next().value;
+    this.hunts.set(record.id, record);
+    while (this.hunts.size > MAX_MEMORY) {
+      const oldest = this.hunts.keys().next().value;
       if (oldest === undefined) break;
-      this.map.delete(oldest);
+      this.hunts.delete(oldest);
     }
   }
 
   async get(id: string): Promise<HuntRecord | null> {
-    return this.map.get(id) ?? null;
+    return this.hunts.get(id) ?? null;
   }
 
   async list(limit: number): Promise<HuntRecord[]> {
-    return [...this.map.values()].slice(-limit).reverse();
+    return [...this.hunts.values()].slice(-limit).reverse();
+  }
+
+  async setConnection(repo: string, sealed: string): Promise<void> {
+    this.connections.set(repo, sealed);
+  }
+
+  async getConnection(repo: string): Promise<string | null> {
+    return this.connections.get(repo) ?? null;
+  }
+
+  async deleteConnection(repo: string): Promise<boolean> {
+    return this.connections.delete(repo);
+  }
+
+  async connectionCount(): Promise<number> {
+    return this.connections.size;
+  }
+
+  async clearConnections(): Promise<void> {
+    this.connections.clear();
   }
 
   async close(): Promise<void> {
@@ -54,7 +81,12 @@ class PgHuntStore implements HuntStore {
              record JSONB NOT NULL,
              finished_at TIMESTAMPTZ NOT NULL
            );
-           CREATE INDEX IF NOT EXISTS hunts_finished_at_idx ON hunts (finished_at DESC);`,
+           CREATE INDEX IF NOT EXISTS hunts_finished_at_idx ON hunts (finished_at DESC);
+           CREATE TABLE IF NOT EXISTS repo_connections (
+             repo TEXT PRIMARY KEY,
+             sealed TEXT NOT NULL,
+             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+           );`,
         )
         .then(() => undefined)
         .catch((e) => {
@@ -92,6 +124,43 @@ class PgHuntStore implements HuntStore {
     return rows.map((r) => r.record);
   }
 
+  async setConnection(repo: string, sealed: string): Promise<void> {
+    await this.ensure();
+    await this.pool.query(
+      `INSERT INTO repo_connections (repo, sealed, updated_at) VALUES ($1, $2, now())
+       ON CONFLICT (repo) DO UPDATE SET sealed = EXCLUDED.sealed, updated_at = now()`,
+      [repo, sealed],
+    );
+  }
+
+  async getConnection(repo: string): Promise<string | null> {
+    await this.ensure();
+    const { rows } = await this.pool.query<{ sealed: string }>(
+      "SELECT sealed FROM repo_connections WHERE repo = $1",
+      [repo],
+    );
+    return rows[0]?.sealed ?? null;
+  }
+
+  async deleteConnection(repo: string): Promise<boolean> {
+    await this.ensure();
+    const result = await this.pool.query("DELETE FROM repo_connections WHERE repo = $1", [repo]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async connectionCount(): Promise<number> {
+    await this.ensure();
+    const { rows } = await this.pool.query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM repo_connections",
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  async clearConnections(): Promise<void> {
+    await this.ensure();
+    await this.pool.query("DELETE FROM repo_connections");
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }
@@ -100,4 +169,12 @@ class PgHuntStore implements HuntStore {
 export function createHuntStore(databaseUrl: string): HuntStore {
   const url = databaseUrl.trim();
   return url ? new PgHuntStore(url) : new MemoryHuntStore();
+}
+
+let singleton: HuntStore | null = null;
+
+/** Process-wide store, used by modules that cannot receive it as an argument. */
+export function store(): HuntStore {
+  if (!singleton) singleton = createHuntStore(process.env.DATABASE_URL ?? "");
+  return singleton;
 }

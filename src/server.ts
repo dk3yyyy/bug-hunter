@@ -196,7 +196,7 @@ const REPO_REFRESH_SKEW_MS = 60_000;
  */
 async function huntTokenFor(repo: string): Promise<string | null> {
   if (env.GITHUB_MODE === "app") return null; // App mode uses installation tokens.
-  const conn = recallRepoConnection(repo, sessionKey());
+  const conn = await recallRepoConnection(repo, sessionKey());
   if (!conn) return null;
 
   const expiring = typeof conn.expiresAt === "number";
@@ -218,7 +218,7 @@ async function huntTokenFor(repo: string): Promise<string | null> {
         ? { refreshToken: conn.refreshToken }
         : {}),
   };
-  rememberRepoConnection(repo, next, sessionKey());
+  await rememberRepoConnection(repo, next, sessionKey());
   return next.token;
 }
 
@@ -939,11 +939,11 @@ app.get("/summon", (c) => {
   return c.redirect("/connect");
 });
 
-app.get("/health", (c) =>
-  // `repos` = how many repos have a remembered user (0 after a restart, since
-  // there is no database — those repos fall back to the server token).
-  c.json({ ok: true, queued: queue.size, repos: repoConnectionCount() }),
-);
+app.get("/health", async (c) => {
+  // `repos` = how many repos have a remembered user (persisted when DATABASE_URL is set).
+  const repos = await repoConnectionCount();
+  return c.json({ ok: true, queued: queue.size, repos });
+});
 
 app.post("/webhooks/github", async (c) => {
   const raw = await c.req.text();
@@ -1150,7 +1150,7 @@ app.post("/api/connect", async (c) => {
     // Remember who authorised this repo so its hunts run as them, not as the
     // operator. Lost on restart (in-memory), which falls back to the server token.
     if (connectSession && connectToken) {
-      rememberRepoConnection(
+      await rememberRepoConnection(
         full,
         {
           login: connectSession.login,
