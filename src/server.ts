@@ -34,6 +34,7 @@ import {
 import { runHunt, type HuntDeps } from "./hunt/pipeline";
 import { buildContext, buildRepoRules } from "./hunt/context";
 import { filterFiles } from "./hunt/filters";
+import { formatLinkedIssues, parseIssueRefs } from "./hunt/issues";
 import { BoundedSet, HuntRateLimiter, planBudget, trimContext } from "./hunt/budget";
 import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
@@ -524,6 +525,19 @@ async function huntOpenPr(
       }),
   };
 
+  // Linked issues: fetch the GitHub issues named in the PR, and surface any
+  // tracker keys (Jira/Linear) as plain text. Untrusted; the prompts delimit it.
+  const refs = parseIssueRefs(`${pr.title}\n${pr.body}`);
+  const fetchedIssues: Array<{ ref: string; title: string; body?: string }> = [];
+  for (const n of refs.github.slice(0, 5)) {
+    const issue = await api.getIssue(octokit, owner, repo, n);
+    if (issue) fetchedIssues.push({ ref: `#${n}`, title: issue.title, body: issue.body });
+  }
+  const linkedParts: string[] = [];
+  if (fetchedIssues.length > 0) linkedParts.push(formatLinkedIssues(fetchedIssues));
+  if (refs.keys.length > 0) linkedParts.push(`Referenced tickets: ${refs.keys.slice(0, 10).join(", ")}`);
+  const linkedIssues = linkedParts.length > 0 ? linkedParts.join("\n") : "(none)";
+
   const result = await runHunt(
     {
       owner,
@@ -532,6 +546,7 @@ async function huntOpenPr(
       headSha: pr.headSha,
       prTitle: pr.title,
       prBody: pr.body,
+      linkedIssues,
       files,
       repoRules,
       context,

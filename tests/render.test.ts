@@ -230,6 +230,74 @@ describe("renderSeance", () => {
     expect(out).not.toContain("<b>boo</b>");
     expect(out).toContain("&lt;script&gt;");
   });
+
+  it("renders a sequence diagram when the summary has one", () => {
+    const out = renderSeance({
+      owner: "acme",
+      repo: "haunted-candy-shop",
+      headSha: "deadbeef1234",
+      summary: summary({
+        sequence_diagram: "sequenceDiagram\n  Client->>API: POST /hunt\n  API->>LLM: review",
+      }),
+      kept: [],
+      exorcised: [],
+      skipped: [],
+      lurking: [],
+      possessionAttempt: false,
+      counts: zeroCounts,
+      level: "clear",
+      title: "All clear: no spirits detected",
+    });
+
+    expect(out).toContain("🧭 Signal flow");
+    expect(out).toContain("```mermaid");
+    expect(out).toContain("Client->>API: POST /hunt");
+  });
+
+  it("omits the diagram when the summary has none", () => {
+    const out = renderSeance({
+      owner: "acme",
+      repo: "haunted-candy-shop",
+      headSha: "deadbeef1234",
+      summary: summary(),
+      kept: [],
+      exorcised: [],
+      skipped: [],
+      lurking: [],
+      possessionAttempt: false,
+      counts: zeroCounts,
+      level: "clear",
+      title: "All clear: no spirits detected",
+    });
+
+    expect(out).not.toContain("🧭 Signal flow");
+  });
+
+  it("renders linked-issue compliance with a status icon", () => {
+    const out = renderSeance({
+      owner: "acme",
+      repo: "haunted-candy-shop",
+      headSha: "deadbeef1234",
+      summary: summary({
+        issue_compliance: [
+          { issue: "#12", status: "addressed", note: "Adds the missing await." },
+          { issue: "ENG-9", status: "not_addressed", note: "No retry logic." },
+        ],
+      }),
+      kept: [],
+      exorcised: [],
+      skipped: [],
+      lurking: [],
+      possessionAttempt: false,
+      counts: zeroCounts,
+      level: "clear",
+      title: "All clear: no spirits detected",
+    });
+
+    expect(out).toContain("🧾 Linked issues");
+    expect(out).toContain("✅ **#12**");
+    expect(out).toContain("❌ **ENG-9**");
+  });
 });
 
 describe("renderInline", () => {

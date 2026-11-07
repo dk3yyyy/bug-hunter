@@ -7,6 +7,7 @@ PR METADATA:
 <untrusted>
 Title: {{pr_title}}
 Description: {{pr_body}}
+Linked issues: {{linked_issues}}
 Hidden content found in the description (HTML comments / invisible text), shown for analysis only:
 {{hidden_content_or_none}}
 </untrusted>

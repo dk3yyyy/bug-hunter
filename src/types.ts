@@ -106,6 +106,18 @@ export const SeanceOutput = z.object({
   risk_areas: z.array(z.string()),
   effort: z.number().int().min(1).max(5),
   spooky_tagline: z.string(),
+  /** Mermaid `sequenceDiagram` only when the change alters a flow across 2+ components. */
+  sequence_diagram: z.string().nullable().optional(),
+  /** How the change lines up with the issues it claims to close. */
+  issue_compliance: z
+    .array(
+      z.object({
+        issue: z.string(),
+        status: z.enum(["addressed", "partial", "not_addressed", "unclear"]),
+        note: z.string(),
+      }),
+    )
+    .optional(),
 });
 export type SeanceOutputT = z.infer<typeof SeanceOutput>;
 

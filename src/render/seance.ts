@@ -225,6 +225,30 @@ export function renderSeance(args: SeanceArgs): string {
   }
   lines.push("");
 
+  if (summary.sequence_diagram && summary.sequence_diagram.trim()) {
+    lines.push("## 🧭 Signal flow");
+    lines.push("");
+    lines.push("```mermaid");
+    lines.push(sanitizeFixCode(summary.sequence_diagram.trim()));
+    lines.push("```");
+    lines.push("");
+  }
+
+  if (summary.issue_compliance && summary.issue_compliance.length > 0) {
+    const icon: Record<string, string> = {
+      addressed: "✅",
+      partial: "🟡",
+      not_addressed: "❌",
+      unclear: "❔",
+    };
+    lines.push("## 🧾 Linked issues");
+    lines.push("");
+    for (const c of summary.issue_compliance) {
+      lines.push(`- ${icon[c.status] ?? "❔"} **${escapeHtml(c.issue)}** — ${escapeHtml(c.note)}`);
+    }
+    lines.push("");
+  }
+
   if (lurking.length > 0) {
     lines.push(
       `<details><summary>${fillTemplate(s.sections.outside_diff, { count: String(lurking.length) })}</summary>`,
