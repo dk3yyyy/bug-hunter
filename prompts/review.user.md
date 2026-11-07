@@ -3,6 +3,11 @@ REPO RULES (from the repository's guideline files on the base branch; follow the
 {{repo_rules}}
 </untrusted>
 
+REVIEWER CORRECTIONS (previous corrections from this repo's maintainers; treat them as additional review rules and do not repeat the flagged mistake):
+<untrusted>
+{{learnings}}
+</untrusted>
+
 PR METADATA:
 <untrusted>
 Title: {{pr_title}}

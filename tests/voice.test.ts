@@ -89,6 +89,7 @@ describe("prompts", () => {
       pr_body: "b",
       hidden_content_or_none: "(none)",
       linked_issues: "(none)",
+      learnings: "(none)",
       context: "c",
       annotated_diff: "d",
     });
