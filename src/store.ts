@@ -8,6 +8,8 @@ export interface HuntStore {
   save(record: HuntRecord): Promise<void>;
   get(id: string): Promise<HuntRecord | null>;
   list(limit: number): Promise<HuntRecord[]>;
+  /** Sum of recorded LLM spend for hunts finished at/after `iso`. */
+  spendSince(iso: string): Promise<number>;
   setConnection(repo: string, sealed: string): Promise<void>;
   getConnection(repo: string): Promise<string | null>;
   deleteConnection(repo: string): Promise<boolean>;
@@ -44,6 +46,14 @@ class MemoryHuntStore implements HuntStore {
 
   async list(limit: number): Promise<HuntRecord[]> {
     return [...this.hunts.values()].slice(-limit).reverse();
+  }
+
+  async spendSince(iso: string): Promise<number> {
+    let total = 0;
+    for (const r of this.hunts.values()) {
+      if (r.finishedAt >= iso && typeof r.costUsd === "number") total += r.costUsd;
+    }
+    return total;
   }
 
   async setConnection(repo: string, sealed: string): Promise<void> {
@@ -166,6 +176,16 @@ class PgHuntStore implements HuntStore {
       [limit],
     );
     return rows.map((r) => r.record);
+  }
+
+  async spendSince(iso: string): Promise<number> {
+    await this.ensure();
+    const { rows } = await this.pool.query<{ total: string }>(
+      `SELECT COALESCE(SUM(COALESCE((record->>'costUsd')::numeric, 0)), 0)::text AS total
+         FROM hunts WHERE finished_at >= $1`,
+      [iso],
+    );
+    return Number(rows[0]?.total ?? 0);
   }
 
   async setConnection(repo: string, sealed: string): Promise<void> {

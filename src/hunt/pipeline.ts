@@ -66,6 +66,8 @@ export interface HuntInput {
   linkedIssues?: string;
   /** Reviewer corrections stored for this repo, or "(none)". */
   learnings?: string;
+  /** Deterministic scanner output, already formatted, or "(none)". */
+  lintFindings?: string;
   files: ChangedFile[];
   repoRules: string;
   context: string; // already-built context text
@@ -151,6 +153,7 @@ export async function runHunt(input: HuntInput, deps: HuntDeps): Promise<HuntRes
     hidden_content_or_none: hiddenContent.length ? hiddenContent.join("\n---\n") : "(none)",
     linked_issues: input.linkedIssues?.trim() || "(none)",
     learnings: input.learnings?.trim() || "(none)",
+    lint_findings: input.lintFindings?.trim() || "(none)",
     context: input.context,
     annotated_diff: input.annotatedDiff,
   };

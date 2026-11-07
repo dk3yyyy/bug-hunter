@@ -27,6 +27,8 @@ import { parsePatch } from "./diff/parse";
 import { planBudget, trimContext } from "./hunt/budget";
 import { filterFiles } from "./hunt/filters";
 import { runHunt, type HuntDeps, type HuntResult } from "./hunt/pipeline";
+import { formatLintFindings, runLinters } from "./lint";
+import { costOf, formatUsd } from "./cost";
 import { resolveModelConfig, type LlmProvider, type ModelConfig, type ModelEnv } from "./llm/config";
 import { generateStructured } from "./llm/structured";
 import { loadAllPrompts } from "./prompts";
@@ -906,7 +908,29 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
   const annotatedDiff = annotateDiff(hunted, { maxChars: diffMaxChars }).text;
   const context = trimContext(buildLocalContext(info.root, hunted), contextMaxChars);
 
+  // Deterministic linters run only where a real checkout exists (the CLI), and
+  // only when explicitly enabled. Findings are advisory prompt context.
+  let lintFindings = "(none)";
+  if (process.env.LINT_ENABLED === "true") {
+    const lint = await runLinters(
+      hunted.map((f) => ({ path: f.filename, patch: f.patch ?? "" })),
+      { cwd: info.root },
+    );
+    lintFindings = formatLintFindings(lint.findings);
+    const tools = lint.toolsRun.length ? lint.toolsRun.join(", ") : "none";
+    const skipped = lint.skipped.map((s) => `${s.tool} (${s.reason})`).join(", ");
+    err(
+      `bughunter: linters ran: ${tools}; ${lint.findings.length} finding(s)` +
+        (skipped ? `; skipped: ${skipped}` : ""),
+    );
+  }
+
   const sessionId = `bh-${randomUUID()}`;
+  const tokens = { inputTokens: 0, outputTokens: 0 };
+  const addUsage = (u: { inputTokens: number; outputTokens: number }): void => {
+    tokens.inputTokens += u.inputTokens;
+    tokens.outputTokens += u.outputTokens;
+  };
   const deps: HuntDeps = {
     review: ({ system, user }) =>
       generateStructured({
@@ -915,6 +939,7 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
         system,
         prompt: user,
         label: "review",
+        onUsage: addUsage,
       }),
     verify: ({ system, user }) =>
       generateStructured({
@@ -923,6 +948,7 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
         system,
         prompt: user,
         label: "verify",
+        onUsage: addUsage,
       }),
     seance: ({ system, user }) =>
       generateStructured({
@@ -931,6 +957,7 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
         system,
         prompt: user,
         label: "seance",
+        onUsage: addUsage,
       }),
   };
 
@@ -944,6 +971,7 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
         headSha: info.headSha,
         prTitle: info.title,
         prBody: info.body,
+        lintFindings,
         files,
         repoRules,
         context,
@@ -957,6 +985,15 @@ async function runReview(cmd: Extract<Command, { kind: "review" }>): Promise<num
   } catch (e) {
     err(`bughunter: model call failed: ${errorMessage(e)}`);
     return 2;
+  }
+
+  const modelCfg = resolveModelConfig(modelEnvValue, "review");
+  const costUsd = costOf(tokens, modelCfg.provider, modelCfg.model);
+  if (tokens.inputTokens + tokens.outputTokens > 0) {
+    err(
+      `bughunter: ${tokens.inputTokens + tokens.outputTokens} tokens` +
+        (costUsd === null ? " (price unknown for this model)" : ` · ${formatUsd(costUsd)}`),
+    );
   }
 
   const formatted =

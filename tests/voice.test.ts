@@ -90,6 +90,7 @@ describe("prompts", () => {
       hidden_content_or_none: "(none)",
       linked_issues: "(none)",
       learnings: "(none)",
+      lint_findings: "(none)",
       context: "c",
       annotated_diff: "d",
     });

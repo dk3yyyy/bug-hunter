@@ -73,3 +73,14 @@ describe("HuntStore learnings", () => {
     expect(await store.listLearnings("acme/app")).toEqual([]);
   });
 });
+
+describe("HuntStore spend", () => {
+  it("sums costUsd for hunts finished since a timestamp", async () => {
+    const store = createHuntStore("");
+    await store.save({ ...rec("a", "2026-01-10T00:00:00.000Z"), costUsd: 0.02 });
+    await store.save({ ...rec("b", "2026-02-01T00:00:00.000Z"), costUsd: 0.05 });
+    await store.save({ ...rec("c", "2026-02-02T00:00:00.000Z"), costUsd: null });
+    expect(await store.spendSince("2026-02-01T00:00:00.000Z")).toBeCloseTo(0.05, 6);
+    expect(await store.spendSince("2026-01-01T00:00:00.000Z")).toBeCloseTo(0.07, 6);
+  });
+});

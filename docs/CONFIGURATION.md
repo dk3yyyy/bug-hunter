@@ -107,6 +107,8 @@ cost and latency without changing the findings.
 |---|---|---|---|
 | `MAX_FINDINGS` | no | `12` | Maximum posted findings. Values above 40 are clamped to the schema limit |
 | `CONFIDENCE_THRESHOLD` | no | `0.7` | Minimum adjusted confidence for a finding to be posted, `0`–`1` |
+| `MONTHLY_COST_CAP_USD` | no | `0` | Month-to-date LLM spend cap in USD. `0` = unlimited. When reached, new hunts are refused before any model call (HTTP 402, error commit status) |
+| `LINT_ENABLED` | no | `false` | In the CLI, run installed deterministic linters (gitleaks/semgrep/eslint) on the changed files and pass findings to the model as advisory context |
 | `BOT_HANDLE` | no | `bughunter` | Mention used for PR commands, e.g. `@bughunter hunt` |
 
 Each file is also limited to three posted findings regardless of

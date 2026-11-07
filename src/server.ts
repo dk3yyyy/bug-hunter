@@ -49,7 +49,8 @@ import { errorStatus, hauntingToStatus, nothingToHuntStatus, pendingStatus } fro
 import { renderLanding, renderDashboard, renderSummoned, renderConnect } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
-import { getModel } from "./llm/models";
+import { getModel, resolveModelConfig } from "./llm/models";
+import { costOf, capMessage, overCap, type TokenUsage } from "./cost";
 import { providerDisplayName } from "./llm/config";
 import { generateStructured } from "./llm/structured";
 import { loadAllPrompts } from "./prompts";
@@ -71,6 +72,18 @@ const rateLimiter = new HuntRateLimiter(10, 60 * 60 * 1000); // SPEC §17: max 1
 /** Thrown when a PR has used up its hunts for the hour (SPEC §17). */
 export class HuntRateLimitedError extends Error {
   override name = "HuntRateLimitedError";
+}
+
+/** Month-to-date spend reached the configured cap; no model calls are made. */
+export class HuntBudgetError extends Error {
+  override name = "HuntBudgetError";
+  constructor(
+    message: string,
+    readonly spendUsd: number,
+    readonly capUsd: number,
+  ) {
+    super(message);
+  }
 }
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 const HUNT_DEBOUNCE_MS = 60_000;
@@ -399,6 +412,18 @@ async function runHuntForPrInner(
     throw new HuntRateLimitedError("max hunts per PR per hour reached");
   }
 
+  // Spend protection: refuse before any model call when the month is over budget.
+  const capUsd = env.MONTHLY_COST_CAP_USD;
+  if (capUsd > 0) {
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+    const spend = await hunts.spendSince(monthStart.toISOString());
+    if (overCap(spend, capUsd)) {
+      throw new HuntBudgetError(capMessage(spend, capUsd), spend, capUsd);
+    }
+  }
+
   const pending = pendingStatus();
   await api.setCommitStatus(octokit, owner, repo, pr.headSha, {
     context: pending.context,
@@ -409,8 +434,12 @@ async function runHuntForPrInner(
   try {
     return await huntOpenPr(octokit, owner, repo, prNumber, pr, huntId);
   } catch (e) {
-    // Never leave the PR stuck on "pending" (status error copy comes from voice.json).
-    const err = errorStatus();
+    // Never leave the PR stuck on "pending". Budget refusals say why; everything
+    // else uses the voice-flavored error copy.
+    const err =
+      e instanceof HuntBudgetError
+        ? { context: pendingStatus().context, state: "error" as const, description: e.message.slice(0, 140) }
+        : errorStatus();
     await api.setCommitStatus(octokit, owner, repo, pr.headSha, err);
     throw e;
   }
@@ -507,6 +536,12 @@ async function huntOpenPr(
   // One conversation id for the whole hunt: OpenCode Go requires it and uses it to
   // route and cache across the review/verify/seance passes.
   const sessionId = `bh-${randomUUID()}`;
+  // Token usage accumulates across all passes (retries and the repair call included).
+  const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+  const addUsage = (u: { inputTokens: number; outputTokens: number }): void => {
+    usage.inputTokens += u.inputTokens;
+    usage.outputTokens += u.outputTokens;
+  };
   const deps: HuntDeps = {
     review: ({ system, user }) =>
       generateStructured({
@@ -514,6 +549,7 @@ async function huntOpenPr(
         schema: ReviewOutput,
         system,
         prompt: user,
+        onUsage: addUsage,
       }),
     verify: ({ system, user }) =>
       generateStructured({
@@ -521,6 +557,7 @@ async function huntOpenPr(
         schema: Verdict,
         system,
         prompt: user,
+        onUsage: addUsage,
       }),
     seance: ({ system, user }) =>
       generateStructured({
@@ -528,8 +565,10 @@ async function huntOpenPr(
         schema: SeanceOutput,
         system,
         prompt: user,
+        onUsage: addUsage,
       }),
   };
+  const modelCfg = resolveModelConfig(env, "review");
 
   // Linked issues: fetch the GitHub issues named in the PR, and surface any
   // tracker keys (Jira/Linear) as plain text. Untrusted; the prompts delimit it.
@@ -666,6 +705,9 @@ async function huntOpenPr(
       line: f.position?.start_line ?? f.start_line,
     })),
     finishedAt: new Date().toISOString(),
+    ...(usage.inputTokens + usage.outputTokens > 0 ? { usage: { ...usage } } : {}),
+    costUsd: costOf(usage, modelCfg.provider, modelCfg.model),
+    model: modelCfg.model,
   };
   await hunts.save(record);
 
@@ -1199,6 +1241,17 @@ app.post("/api/hunt", async (c) => {
     }
     return c.json(record);
   } catch (e) {
+    if (e instanceof HuntBudgetError) {
+      return c.json(
+        {
+          error: e.message,
+          code: "BUDGET_REACHED",
+          spendUsd: Number(e.spendUsd.toFixed(4)),
+          capUsd: e.capUsd,
+        },
+        402,
+      );
+    }
     if (e instanceof HuntRateLimitedError) {
       return c.json(
         { error: "Rate limited: max 10 hunts per PR per hour.", code: "RATE_LIMITED" },
@@ -1337,9 +1390,18 @@ app.delete("/api/learnings/:id", async (c) => {
 });
 
 // Results dashboard (Postgres when DATABASE_URL is set, else in-memory).
-app.get("/dashboard", async (c) =>
-  c.html(renderDashboard(await hunts.list(50), await hunts.recentLearnings(20))),
-);
+app.get("/dashboard", async (c) => {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthSpendUsd = await hunts.spendSince(monthStart.toISOString());
+  return c.html(
+    renderDashboard(await hunts.list(50), await hunts.recentLearnings(20), {
+      monthSpendUsd,
+      capUsd: env.MONTHLY_COST_CAP_USD,
+    }),
+  );
+});
 app.get("/summoned", (c) =>
   c.html(renderSummoned(listRepos(), c.req.query("installation_id"))),
 );
