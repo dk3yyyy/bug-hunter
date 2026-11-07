@@ -26,7 +26,7 @@ better than one that fails to import.
 
 ## 1. Workflow 1 — 🚨 Haunting Alert (`haunting-alert.json`)
 
-This is the MUST workflow. **Shipped nodes** (import cleanly):
+This is the primary workflow. **Shipped nodes** (import cleanly):
 
 | Node | Type | Purpose |
 |---|---|---|
@@ -104,7 +104,7 @@ hand:
      <p><a href="{{ $json.pr_url }}">View the Séance Report →</a></p>
      ```
 
-3. **Possession extra line** (SPEC §16.2 step 5): when `possession_attempt` is true, include
+3. **Possession extra line:** when `possession_attempt` is true, include
    `🪄 Someone tried to possess the reviewer. Bug Hunter resisted.` You can add a second
    expression such as:
 
@@ -175,9 +175,9 @@ completion message. The server call + polling + dynamic completion are documente
    3. **Completion page showing the haunting level.** The static "form submitted" text shipped in
       the trigger is a placeholder. To show the *actual* haunting level you need n8n's **Wait →
       Respond to Webhook** pattern or custom form JavaScript — document that as a follow-up; a
-      static "the hunt has been summoned" page is a fine Step-4 MVP.
+      static "the hunt has been summoned" page is fine for a first version.
 3. The server endpoints `POST /api/hunt` and `GET /api/hunts/:id` must exist and validate the
-   `X-BugHunter-Secret` header (see SPEC §16.4).
+   `X-BugHunter-Secret` header.
 
 ---
 

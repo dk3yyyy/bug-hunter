@@ -3,64 +3,94 @@
 
 # Bug Hunter 🎃
 
-> *"Every PR is haunted. Bug Hunter finds the spirits before they reach production."*
+> *Every PR is haunted. Bug Hunter finds the spirits before they reach production.*
 
-An open-source AI code reviewer that hunts bugs and security holes in GitHub pull
-requests — powered by your LLM (Google Gemini by default; or Claude, OpenAI,
-OpenCode Go, DeepSeek, and any OpenAI-compatible model) — then posts a themed 🔮 Séance
-Report with fixes.
+Bug Hunter is an open-source AI pull-request reviewer. It reads a diff with **your
+model**, runs a second skeptical pass to remove false alarms, detects hidden
+prompt-injection attempts, and posts a themed **🔮 Séance Report** with inline
+fixes and a commit status.
 
-Built at **GDG Sunderland Hacktoberfest 2026 AI Hack Day** ("Automate the Nightmare!").
+It runs on your own infrastructure, reads keys from your own environment, and
+works with Gemini, Claude, OpenAI, OpenCode Go, DeepSeek, OpenRouter, Ollama, or
+any OpenAI-compatible endpoint.
 
-**Contents:** [What it does](#what-it-does) · [Try it in 5 minutes](#try-it-in-5-minutes) · [Setup](#setup) · [Verify it works](#verify-it-works) · [What it is not](#what-it-is-not) · [Connecting a repo](#connecting-a-repo) · [Endpoints](#endpoints) · [How it works](#how-it-works) · [Repo rules](#repo-rules-bughuntermd) · [n8n bonus](#n8n-bonus) · [Demo](#demo) · [Contributing](#contributing) · [Development](#development) · [Docs](#docs) · [License](#license)
+**Hosted instance:** https://bug-hunter-ty2y.onrender.com<br>
+**Landing page:** https://dk3yyyy.github.io/bug-hunter/<br>
+**Docs:** [Quickstart](docs/QUICKSTART.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Self-hosting](docs/SELF-HOSTING.md)
 
-## See it work
+## Why it exists
 
-[![A Séance Report posted on a sample pull request](docs/sample-report.png)](https://github.com/dk3yyyy/bug-hunter/pull/34)
+Most AI review tools ask you to trust a hosted black box with your source code, a
+single vendor's model, and a stream of comments nobody can audit. Bug Hunter takes
+the opposite position:
 
-[PR #34](https://github.com/dk3yyyy/bug-hunter/pull/34) is a permanent demo fixture: one
-file with two real bugs and one injected instruction. The report, the inline comment on
-line 20 and the commit status on that PR are Bug Hunter's own output — including the
-injected instruction, which the verifier noticed and then **exorcised** as a false alarm
-because a non-executable comment in a demo file is not a finding.
-
-The [hosted demo](https://bug-hunter-ty2y.onrender.com) runs on a free tier, so the first
-request after a quiet period can take about a minute. Running it yourself takes five.
-
-![Bug Hunter landing page](docs/landing.png)
+- **Bring your own model.** Point it at the provider you already pay for, or run a
+  local model through Ollama.
+- **Keep the code path yours.** Diffs go from your server to your model provider.
+  Hunt history is in memory by default; set `DATABASE_URL` to persist it in your
+  own Postgres.
+- **Say less, mean more.** A verifier pass drops weak candidates before they reach
+  the report. Every finding has a location, evidence, and an honest confidence
+  number.
+- **Assume the PR is hostile.** Pull-request text is untrusted input. Hidden
+  instructions and invisible characters are detected and surfaced, not obeyed.
+- **Stay readable.** The report copy is data (`prompts/voice.json`), not code, so
+  teams can change the tone without touching the pipeline.
 
 ## What it does
 
 When a pull request opens, Bug Hunter:
 
-1. Reads the diff and hunts for real bugs and security holes with **your model**.
-2. Runs a second, skeptical **verifier** pass to throw out false alarms.
-3. Detects **possession attempts** — hidden instructions trying to trick AI reviewers.
-4. Posts a themed **🔮 Séance Report** ranking every finding by creature (💀 Demon … 🕸️ Cobweb).
-5. Adds **inline comments** with one-click fixes and a **commit status** with the haunting level.
-6. Fires an **n8n** workflow that logs each hunt to **Google Sheets** and sends a **Gmail**
-   alert when a PR is haunted or possessed.
+1. Reads the diff and hunts for real bugs and security holes with your model.
+2. Runs a second, skeptical **verifier** pass to drop or downgrade weak findings.
+3. Detects **possession attempts** — hidden instructions aimed at AI reviewers.
+4. Posts a **🔮 Séance Report** ranking findings by creature (💀 Demon … 🍬 Candy
+   wrapper) and haunting level (🌕 clear → 💀 possessed).
+5. Adds **inline comments** with one-click suggestions and a **commit status**.
+6. Optionally fires an **n8n** workflow that logs each hunt to Google Sheets and
+   sends a Gmail alert for haunted or possessed PRs.
 
-## Try it in 5 minutes
+Reviewer commands on a pull request:
 
-**No webhook or tunnel needed** — hunt a PR straight from the browser.
+| Command | Effect |
+|---|---|
+| `@bughunter hunt` or `@bughunter review` | Run a hunt now |
+| `@bughunter seance` or `@bughunter summary` | Regenerate the Séance Report |
+| `@bughunter spellbook` or `@bughunter help` | List commands |
+
+Commands are accepted only from repository owners, members, and collaborators.
+Draft PRs, closed PRs, and dependabot/renovate PRs are skipped. A per-PR rate limit
+caps hunts at 10 per hour, and one hunt per PR may run at a time.
+
+## See a real report
+
+[![A Séance Report posted on a sample pull request](docs/sample-report.png)](https://github.com/dk3yyyy/bug-hunter/pull/34)
+
+[PR #34](https://github.com/dk3yyyy/bug-hunter/pull/34) is a permanent fixture: one
+file with two real bugs and one injected instruction. The report, the inline
+comment, and the commit status on that PR are Bug Hunter's own output. The
+verifier noticed the injected instruction and exorcised it as a false alarm,
+because a non-executable comment is not a finding.
+
+## Quickstart
+
+**No webhook or tunnel needed** — hunt a pull request straight from the browser.
 
 ```bash
+git clone https://github.com/dk3yyyy/bug-hunter.git
+cd bug-hunter
 npm install
-cp .env.example .env
-# fill in .env (see Setup below), then:
-npm run check:models      # list valid model ids for your provider
-npm run dev               # http://localhost:3000
+cp .env.example .env     # add your GitHub token and one model key
+npm run check:models     # list valid model ids for your provider
+npm run dev              # http://localhost:3000
 ```
 
-Then open **http://localhost:3000/connect** and paste a pull request URL:
+Requires **Node 22+**. Then open **http://localhost:3000/connect** and paste a
+pull request URL.
 
-- On a hosted instance with GitHub login configured, click **Connect with GitHub** and
-  hunt — there is no secret to copy.
-- Locally, use the shared secret field (inside **Advanced** if it is collapsed): paste
-  `N8N_SHARED_SECRET` from your `.env`.
-
-Either way the 🔮 Séance Report, inline comments and commit status land on that GitHub PR.
+- On a hosted instance with GitHub login configured, click **Connect with GitHub**.
+- Locally, paste `N8N_SHARED_SECRET` into the shared-secret field (under
+  **Advanced** if it is collapsed).
 
 Or from the shell:
 
@@ -71,345 +101,227 @@ curl -X POST http://localhost:3000/api/hunt \
   -d '{"pr_url":"https://github.com/YOU/REPO/pull/N"}'
 ```
 
-Requires Node 22+.
+A healthy hunt takes **60–120 seconds** and leaves three things on the PR:
 
-## Setup
+1. a **`Bug Hunter` commit status** — *pending* immediately, then *haunted* or
+   *clear*
+2. one **🔮 Séance Report** comment, updated in place on re-runs
+3. **inline comments** on flagged lines with suggested fixes, when there are
+   findings
 
-Fill in `.env`:
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full five-minute walkthrough.
 
-- **LLM provider** — one of:
-  - `google` (default): set `GOOGLE_GENERATIVE_AI_API_KEY` from
-    [Google AI Studio](https://aistudio.google.com/).
-  - `anthropic` (Claude) / `openai` / `opencode` (OpenCode Go) / `deepseek` /
-    `openrouter` / `ollama` / `openai-compatible`: set `LLM_PROVIDER`, `LLM_API_KEY`,
-    `LLM_MODEL_REVIEW` (and `LLM_MODEL_FAST`, optional), plus `LLM_BASE_URL` for
-    `openai-compatible`. The Gemini key is only required for `google`.
-- `GITHUB_TOKEN` — a fine-grained personal access token scoped to your repo
-  (Contents: Read · Pull requests: Read & write · Issues: Read & write · Commit statuses:
-  Read & write · Webhooks: Read & write · Metadata: Read). **Webhooks** is only needed
-  for one-click auto-connect; classic tokens need `repo` (or `admin:repo_hook`).
-- `GITHUB_WEBHOOK_SECRET` — a random string; it must match the secret on your GitHub webhook.
-- `N8N_SHARED_SECRET` — random, **at least 16 chars** (also the `X-BugHunter-Secret`
-  for `/api/hunt` and `/api/connect`).
-- `N8N_HUNT_WEBHOOK_URL` — optional, for the n8n workflow.
-- `PUBLIC_URL` — optional; the public URL of this server (a tunnel or a deployment).
-  Enables one-click webhook registration on `/connect`. You can also paste the URL
-  into the form instead of setting it here.
-- `APP_URL` — optional; the URL of a hosted instance. When set, the landing's
-  "Connect a repo" button points at `<APP_URL>/connect` (the GitHub Pages build
-  reads the `APP_URL` repository variable).
-- `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` — optional; enable
-  **Connect with GitHub** so nobody has to paste a secret. See
-  [the login section](#connect-with-github-login-no-shared-secret).
-- `SESSION_SECRET` — seals the session cookie. Optional (derived from
-  `N8N_SHARED_SECRET` when empty), but set it explicitly in production: changing it
-  signs everyone out.
-- `ALLOWED_GITHUB_LOGINS` — optional comma-separated allowlist, e.g. `dk3yyyy`.
-  **Set this on any publicly reachable instance**, otherwise any GitHub user can sign
-  in, connect their own repo, and spend your model credits.
+## Providers
 
-### Providers
+Set `LLM_PROVIDER` and the matching key. Gemini is the default.
 
-| Provider | `LLM_PROVIDER` | `LLM_MODEL_REVIEW` example |
-|---|---|---|
-| Google Gemini | `google` | `gemini-2.0-flash` |
-| Claude | `anthropic` | `claude-sonnet-4-5` |
-| OpenAI | `openai` | `gpt-4o` |
-| OpenCode Go | `opencode` | `glm-5.3` |
-| DeepSeek | `deepseek` | `deepseek-chat` |
-| OpenRouter | `openrouter` | `anthropic/claude-sonnet-4.5` |
-| Ollama (local) | `ollama` | `qwen2.5-coder:14b` |
-| Any OpenAI-compatible | `openai-compatible` | vendor model id |
+| Provider | `LLM_PROVIDER` | `LLM_MODEL_REVIEW` example | Key |
+|---|---|---|---|
+| Google Gemini | `google` | `gemini-flash-latest` | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| Claude | `anthropic` | `claude-sonnet-4-5` | `LLM_API_KEY` |
+| OpenAI | `openai` | `gpt-4o` | `LLM_API_KEY` |
+| OpenCode Go | `opencode` | `deepseek-v4-pro` | `LLM_API_KEY` |
+| DeepSeek | `deepseek` | `deepseek-chat` | `LLM_API_KEY` |
+| OpenRouter | `openrouter` | `anthropic/claude-sonnet-4.5` | `LLM_API_KEY` |
+| Ollama (local) | `ollama` | `qwen2.5-coder:14b` | `LLM_API_KEY` (any non-empty value) |
+| Any OpenAI-compatible | `openai-compatible` | vendor model id | `LLM_API_KEY` + `LLM_BASE_URL` |
 
-To list the valid ids for your provider, run `npm run check:models`. If the default
-`gemini-flash-latest` 404s on your account, set `GEMINI_MODEL_REVIEW` to a real id.
+`npm run check:models` lists valid ids for your provider. A review hunt normally
+makes three model calls: review, verify, and a short Séance summary. If
+`LLM_MODEL_FAST` is set, the summary pass uses it. See
+[Configuration](docs/CONFIGURATION.md) for every variable and provider default.
 
-## Verify it works
+## Ways to connect a repository
 
-Open a pull request on a connected repo, or paste a PR URL into `/connect`. A healthy
-hunt takes **60–120 seconds** and leaves three things on the pull request:
+There are three connection modes. They can be used together.
 
-1. a **`Bug Hunter` commit status** — *pending* within seconds, then *haunted* or *clear*
-2. a 🔮 **Séance Report** comment
-3. **inline comments** on the flagged lines, with suggested fixes (when there are findings)
+### 1. Hunt a PR on demand
 
-`/dashboard` lists recent hunts, and `GET /health` returns
-`{"ok":true,"queued":N,"repos":N}` — `repos` counts repos with a remembered user.
+The `/connect` page or `POST /api/hunt` runs a hunt without registering a
+webhook. Authenticate with a GitHub session or the `X-BugHunter-Secret` header.
 
-From the shell, auth and liveness are two cheap checks that never spend model credits:
+### 2. Repository webhook
+
+On `/connect`, enter `owner/name` and the public URL of your instance. Bug Hunter
+creates or reuses a webhook for `pull_request` and `issue_comment` events with
+content type `application/json` and your `GITHUB_WEBHOOK_SECRET`.
+
+For a local server, forward GitHub to it with a tunnel:
 
 ```bash
-curl -s https://your-host/health
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://your-host/api/hunt \
-  -H 'content-type: application/json' -d '{}'    # 401 = reachable and gated correctly
+npx smee -u https://smee.io/<your-channel> -t http://localhost:3000/webhooks/github
+# or: ngrok http 3000
 ```
 
-If nothing lands on the PR, check the webhook delivery log before assuming a bug:
+GitHub must be able to reach the URL. For smee, paste the full channel URL; for
+ngrok/cloudflared, the server appends `/webhooks/github`.
 
-```bash
-gh api /repos/OWNER/REPO/hooks --jq '.[].id'     # find the hook id
-gh api /repos/OWNER/REPO/hooks/<id>/deliveries \
-  --jq '.[] | "\(.delivered_at) \(.event) -> \(.status_code) \(.status)"'
-```
+### 3. GitHub App
 
-`200 OK` means it reached the server; a timeout there means the instance was asleep —
-GitHub does not retry failed deliveries.
+Set `GITHUB_MODE=app` plus `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, and either
+`GITHUB_PRIVATE_KEY_PATH` or inline `GITHUB_PRIVATE_KEY`. The landing page and
+`/summon` hand off to GitHub's install page, and `installation` webhooks keep the
+connected-repo list in sync.
 
-## What it is not
+The App needs **Pull requests**, **Issues**, and **Commit statuses** read & write,
+**Contents** read, the **Pull request**, **Issue comment**, and **Installation**
+events, and a Setup URL of `<public-url>/summoned`.
 
-- **Not an oracle.** The verifier pass removes some false alarms; it does not make the
-  remaining findings true. The confidence number is the model's own estimate, not a
-  calibrated probability.
-- **No precision or recall claim.** There is no labelled corpus of real pull requests
-  behind this, so there is no honest accuracy figure to publish. The sample PR shows
-  behaviour, not performance.
-- **Cost and latency scale with the diff.** Every hunt is at least two model calls
-  (review, then verify). Large diffs are trimmed by a budget before they reach the model,
-  and `MAX_FINDINGS` caps the report.
-- **It writes to your pull request.** It needs pull-request, issue and commit-status write
-  scopes. Treat it as a collaborator with those permissions, not a read-only bot.
-- **The hosted demo sleeps.** The Render free tier stops when idle; the first request
-  after a quiet period takes about a minute.
-- **State is in memory.** Hunts, the `/dashboard` history and the per-repo user
-  mappings all reset on restart or deploy. After a restart, repos fall back to the
-  server's token until they are reconnected.
-- **A hunt can outlive its HTTP request.** A real hunt takes 60–120 seconds, and a
-  proxy in front of it (Cloudflare cuts at 125s) may return `524` while the hunt still
-  finishes. Check the pull request before retrying.
+### Optional: "Connect with GitHub" login
 
-## Connecting a repo
+Pasting a server-generated secret into a web form is a poor first-run experience.
+Register a GitHub **OAuth App** instead:
 
-There are three ways to point Bug Hunter at a repository:
+- **Homepage URL:** `https://your-instance`
+- **Authorization callback URL:** `https://your-instance/auth/github/callback`
 
-1. **Hunt a PR now** (no setup) — the `/connect` page or `POST /api/hunt`.
-2. **Webhook** — on `/connect`, paste `owner/name` and the public URL of this server;
-   Bug Hunter creates the webhook (`pull_request` + `issue_comment`, content type
-   `application/json`, secret = `GITHUB_WEBHOOK_SECRET`). Or add it by hand to
-   `<public-url>/webhooks/github`. GitHub must be able to reach that URL, so for
-   localhost use a tunnel and paste the tunnel URL into the form (or set `PUBLIC_URL`):
-   ```bash
-   npx smee -u https://smee.io/<your-channel> -t http://localhost:3000/webhooks/github
-   # or: ngrok http 3000
-   ```
-   For smee, paste the full `https://smee.io/<your-channel>` URL — Bug Hunter keeps the
-   channel path (that is what smee forwards); for ngrok/cloudflared it appends
-   `/webhooks/github`.
-   Clicking Connect twice is safe: an existing hook that already points at the same
-   URL is reused instead of failing with GitHub's "Hook already exists".
-3. **GitHub App (one-click install)** — set `GITHUB_MODE=app` plus `GITHUB_APP_ID`,
-   `GITHUB_APP_SLUG` and `GITHUB_PRIVATE_KEY_PATH`; the landing's "Connect a repo" and
-   `/summon` hand off to GitHub's app-install page, and `installation` webhooks keep the
-   repo list in sync. This is the full CodeRabbit/Greptile-style flow. The App needs
-   **Pull requests**, **Issues** and **Commit statuses** read & write, **Contents** read,
-   the **Pull request** + **Issue comment** + **Installation** events, and a Setup URL
-   of `<public-url>/summoned`.
+Then set `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, and
+`SESSION_SECRET`. The secret field collapses under **Advanced** and a **Connect
+with GitHub** button appears. OAuth sessions use the signed-in user's token, so
+GitHub enforces exactly the repos and webhooks that user may touch. Set
+`ALLOWED_GITHUB_LOGINS=you,teammate` on any public instance to restrict who may
+sign in.
 
-### Deploy it so the public button works
+The shared secret keeps working for scripts and n8n. If OAuth is not configured,
+the login button is hidden and the form behaves as before.
 
-The GitHub Pages landing is static: it can send people somewhere, but it cannot create
-a webhook or run a review. To make the button work end to end, deploy this server and
-point the landing at it. Both hosts build the repo's `Dockerfile`, and the config is
-committed:
+## Self-hosting
 
-- **Render** — `render.yaml` blueprint. Dashboard → **New → Blueprint** → pick this
-  repo. It creates the service, generates `GITHUB_WEBHOOK_SECRET` and
-  `N8N_SHARED_SECRET`, and prompts for the two secrets it cannot invent
-  (`GITHUB_TOKEN` and your model key).
-- **Railway** — `railway.json`. **New Project → Deploy from GitHub repo**, then add
-  `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `N8N_SHARED_SECRET` and your model key
-  under **Variables**.
-
-`PUBLIC_URL` is derived from `RENDER_EXTERNAL_URL` / `RAILWAY_PUBLIC_DOMAIN`, so a
-first deploy can register webhooks without anyone copying the URL by hand. Set it
-explicitly only for a custom domain. In App mode the PEM goes in `GITHUB_PRIVATE_KEY`
-as inline content, since neither host can mount a key file.
-
-Docker by hand still works:
+The server is a single Node process and ships with a Dockerfile, a Render
+blueprint, and a Railway config.
 
 ```bash
 docker build -t bug-hunter .
 docker run -p 3000:3000 --env-file .env bug-hunter
 ```
 
-Then set:
+- **Render:** `render.yaml` blueprint. **New → Blueprint**, pick the repo, and fill
+  the secrets it prompts for.
+- **Railway:** `railway.json`. Deploy from the repo, then add the environment
+  variables.
+- **Any Docker host:** build the image and pass env vars. Nothing needs a mounted
+  disk, and Postgres is optional.
 
-- `PUBLIC_URL=https://your-host` on the server (the webhook target), and
-- the repository variable `APP_URL=https://your-host` so the next Pages deploy links
-  "Connect a repo" to `https://your-host/connect`:
-  ```bash
-  gh variable set APP_URL --repo dk3yyyy/bug-hunter --body https://your-host
-  gh workflow run deploy-pages.yml   # changing a variable doesn't retrigger the deploy
-  ```
+Full instructions, including GitHub OAuth and App setup and the environment
+reference, are in [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md). Set
+`DATABASE_URL` to keep hunt history across restarts in Postgres; leave it empty
+for the in-memory store.
 
-Alternatively register a GitHub App and set an `APP_SLUG` repository variable; the
-static landing then links straight to `https://github.com/apps/<slug>/installations/new`.
-With neither variable set, the button stays on the page and scrolls to the self-host
-section instead of bouncing to the README.
-
-### "Connect with GitHub" login (no shared secret)
-
-Pasting `N8N_SHARED_SECRET` into a web form is a poor first-run experience — the
-secret is server-generated, so on a hosted instance nobody knows it. Registering a
-small OAuth App replaces it with a button:
-
-1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
-   - **Homepage URL**: your instance, e.g. `https://bug-hunter-ty2y.onrender.com`
-   - **Redirect URI** (older GitHub UIs call this the *Authorization callback URL*):
-     `<same>/auth/github/callback`
-
-   GitHub now allows up to 10 redirect URIs per app, and enables **wildcard
-   matching** on apps that have only one — the redirect matches any path off that
-   URI. If you do not need that, untick *Allow wildcard matching*.
-2. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` on the host, plus
-   `SESSION_SECRET` (any random 32+ chars; it seals the session cookie).
-3. Reload `/connect`: the secret field collapses into an *Advanced* disclosure and a
-   **Connect with GitHub** button takes its place.
-
-OAuth Apps created since August 2026 issue **8-hour access tokens** by default
-(plus a 6-month refresh token). Bug Hunter stores both and silently refreshes the
-access token before it expires, so the 30-day session keeps working. If you would
-rather not use refresh tokens, untick *Expire user authorization tokens* in the
-OAuth App's settings — sessions then rely on a non-expiring token.
-
-With an OAuth App configured, connecting a repo uses **the signed-in user's token**,
-so GitHub itself enforces who may manage that repo's webhooks — login never grants
-more reach than the user already has. Set `ALLOWED_GITHUB_LOGINS=you,teammate` to
-restrict who may sign in at all.
-
-The shared secret keeps working for scripts and n8n regardless. If OAuth is not
-configured, nothing changes: the login button is hidden and the form works as before.
-
-### Who a hunt acts as
-
-When someone connects a repo, Bug Hunter remembers **which user** authorised it and
-runs that repo's hunts with **their** token. So a third party who connects their own
-repo sees reviews posted by their own account, constrained by their permissions —
-not by the operator's.
-
-`GET /health` reports `repos` (how many repos have a remembered user).
-
-Two honest limitations, because there is no database:
-
-- The mapping lives in process memory. **A deploy or restart clears it**, and those
-  repos fall back to the server's `GITHUB_TOKEN` until the user connects again.
-  After a restart, reconnect from `/connect` if you want attribution to stay correct.
-- Repos connected before this existed (or authorised through the shared secret) have
-  no mapping and always use the server token.
-
-If you would rather nobody but you can use the instance at all, set
-`ALLOWED_GITHUB_LOGINS=your-login`: the login callback then refuses everyone else,
-so no one can connect a repo or spend your model credits.
-
-### Connect troubleshooting
-
-| Symptom | Cause / fix |
-|---|---|
-| `401 unauthorized` | Log in with GitHub, or send the `X-BugHunter-Secret` header equal to the server's `N8N_SHARED_SECRET` (Render generates it — see the service's Environment tab). |
-| `402 Insufficient account funds` | On OpenCode Go this usually means the **wrong base URL**, not an empty balance: the subscription is served from `/inference/go/...`, while `/inference/openai/...` is the pay-as-you-go Console balance. Bug Hunter defaults to the former — check `LLM_BASE_URL` before topping anything up. |
-| Button shows `HTTP 524` / "proxy timed out" | The hunt outlived the proxy timeout. It is still running server-side — check the PR for the report. |
-| Nothing appears on the PR at all | The instance was probably asleep when GitHub delivered the webhook, and GitHub does not retry failed deliveries. Wake it (`/health`), then re-run. |
-| `400 PUBLIC_URL not set` | No `PUBLIC_URL` and no URL in the form — paste your tunnel/deployment URL. |
-| Login bounces back with "did not match this browser" | The OAuth state cookie expired (>10 min) or cookies are blocked. Try again in one tab. |
-| Login bounces back with "rejected the login exchange" | Client ID/secret are wrong, or the redirect URI on the OAuth App doesn't match `<PUBLIC_URL>/auth/github/callback`. |
-| Signed in, but connecting fails with 401 | The access token expired and no refresh token was stored. Check the app's *Expire user authorization tokens* setting, then sign out and back in. |
-| `GitHub can't reach localhost…` | A webhook needs a public URL. Use ngrok/smee/cloudflared or deploy. |
-| `403 The token can't manage webhooks` | Fine-grained token needs **Webhooks: Read & write**; classic needs `admin:repo_hook` (or `repo`). |
-| `404 Repo not found…` | Wrong `owner/name`, or the token isn't scoped to that repo. |
-| `422 GitHub rejected the webhook` | Unreachable URL, or the repo hit its webhook limit. |
-
-## Endpoints
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| GET | `/` | none | landing page |
-| GET | `/connect` | none | hunt a PR now / auto-connect a repo |
-| GET | `/auth/github` | none | start the "Connect with GitHub" login |
-| GET | `/auth/github/callback` | OAuth state | finish login, set the session cookie |
-| GET | `/logout` | none | clear the session cookie |
-| GET | `/api/me` | session | who is signed in (JSON) |
-| GET | `/summon` | none | redirect to the GitHub App install page (app mode) or `/connect` |
-| GET | `/summoned` | none | post-install page (app mode): which repos are connected |
-| GET | `/dashboard` | none | recent hunts (in-memory) |
-| GET | `/health` | none | liveness: `{ ok, queued, repos }` — `repos` = remembered per-repo users |
-| POST | `/webhooks/github` | webhook signature | GitHub PR / issue-comment / installation events |
-| POST | `/api/hunt` | session or `X-BugHunter-Secret` | run a hunt now: `{ "pr_url" }` or `{ owner, repo, pr }` |
-| POST | `/api/connect` | session or `X-BugHunter-Secret` | create/reuse a repo webhook: `{ "repo", "public_url"? }` (or `PUBLIC_URL`) |
-| GET | `/api/hunts` | session or `X-BugHunter-Secret` | recent hunts (JSON) |
-| GET | `/api/hunts/:id` | session or `X-BugHunter-Secret` | one hunt (JSON) |
-
-## How it works
+## Architecture
 
 ```
 GitHub PR webhook → verify signature + dedupe → fetch diff → filter files
-→ annotated diff → model review (structured JSON) → validate/snap lines
-→ verifier pass (drop false alarms) → possession check → Séance Report
-→ post one themed comment + inline comments + status → POST hunt.completed → n8n (Sheets + Gmail)
+→ annotated diff + repo context → model review (structured JSON)
+→ validate and snap line positions → verifier pass (drop false alarms)
+→ possession scan → Séance Report → post summary + inline comments + status
+→ save hunt history (Postgres or memory) → POST hunt.completed → n8n (optional)
 ```
 
-## Repo rules (`.bughunter.md`)
+- **Hono + TypeScript** on Node 22, run through `tsx`.
+- **No database required.** Hunt history is in memory by default; set
+  `DATABASE_URL` to keep it in Postgres. Per-repo user mappings, rate limits, and
+  delivery dedupe stay in process memory.
+- **One process, bounded work.** Input is capped around 30k tokens; each file is
+  capped at three findings and the report at `MAX_FINDINGS`.
+- **Defense in depth.** Webhook HMAC verification, delivery dedupe, self-event
+  guards, secret scrubbing in logs and outgoing payloads, and sanitisation of PR
+  text before it reaches a prompt.
 
-Write team rules in plain English in a `.bughunter.md` file on your default branch.
-Bug Hunter reads it from the PR's base branch (a PR can't change its own rules),
-alongside `AGENTS.md` / `CLAUDE.md` / `.cursorrules`. Rules can add checks or tell
-the hunter to ignore accepted patterns. Rules cannot switch off security findings.
-Max 2,000 characters.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module map and data flow.
+
+## Repository rules (`.bughunter.md`)
+
+Add a `.bughunter.md` file on your default branch to teach Bug Hunter your team's
+conventions:
 
 ```markdown
 # 🎃 Bug Hunter rules
 
 ## Always check
--
+- Every new API route has an error path.
+- Database access goes through the repository layer.
 
 ## Conventions we accept (don't flag)
--
+- We use `any` in generated bindings under `src/gen/`.
 
 ## Extra attention (paths or areas)
--
+- `src/billing/` — money paths need extra care.
 ```
 
-All Halloween wording lives in [`prompts/voice.json`](prompts/voice.json) — edit it to
-change the posted reports with no code changes. The LLM prompts live in
-`prompts/review.system.md`, `prompts/review.user.md`, `prompts/verify.md` and
-`prompts/seance.md`.
+Rules are read from the **base branch**, so a pull request cannot change its own
+rules. Bug Hunter also reads `AGENTS.md`, `CLAUDE.md`, and `.cursorrules`.
+`.bughunter.md` is capped at 2,000 characters; all rules together at 6,000.
+Rules can add checks or suppress accepted patterns. They cannot switch off
+security findings.
 
-## n8n bonus
+All report wording lives in [`prompts/voice.json`](prompts/voice.json). The model
+prompts live in [`prompts/`](prompts/).
 
-An n8n workflow (exported to `/n8n/`) receives each hunt result over a shared-secret
-webhook, appends a row to a **Google Sheets** "Hunt Ledger", and sends a **Gmail** alert
-for haunted/possessed PRs — with error handling that logs failures to a separate tab.
+## API
 
-## Demo
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/` | none | landing page |
+| GET | `/connect` | none | hunt a PR or connect a repo |
+| GET | `/auth/github` | none | start GitHub login |
+| GET | `/auth/github/callback` | OAuth state | finish login, set session cookie |
+| GET | `/logout` | none | clear session |
+| GET | `/api/me` | session | current user (JSON) |
+| GET | `/summon` | none | redirect to the App install page (App mode) or `/connect` |
+| GET | `/summoned` | none | post-install page (App mode) |
+| GET | `/dashboard` | none | recent hunts from the hunt store |
+| GET | `/health` | none | liveness: `{ ok, queued, repos }` |
+| POST | `/webhooks/github` | webhook signature | GitHub PR, comment, and installation events |
+| POST | `/api/hunt` | session or `X-BugHunter-Secret` | run a hunt: `{ pr_url }` or `{ owner, repo, pr }`; add `"async": true` for `202` + hunt id |
+| POST | `/api/connect` | session or `X-BugHunter-Secret` | create/reuse a repo webhook |
+| GET | `/api/hunts` | session or `X-BugHunter-Secret` | recent hunts (JSON) |
+| GET | `/api/hunts/:id` | session or `X-BugHunter-Secret` | one hunt (JSON) |
 
-See [`demo/README.md`](demo/README.md) for the haunted-candy-shop demo repo (five planted
-bugs plus a hidden possession attempt), and [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)
-for the 2-minute demo script.
+With `"async": true`, `POST /api/hunt` returns `202` and
+`{ id, status: "running", repo, prNumber }`. Poll `GET /api/hunts/:id` until the
+record exists. The `/connect` page uses this path so a two-minute hunt does not
+hit a proxy timeout. Without `async`, the request waits and returns the finished
+record.
+
+## Honest limitations
+
+- **Not an oracle.** The verifier removes some false alarms; it does not make the
+  remaining findings true. Confidence is the model's own estimate, not a
+  calibrated probability.
+- **No accuracy claim.** There is no labelled corpus behind this project, so there
+  is no honest precision or recall figure to publish.
+- **Cost and latency scale with the diff.** A hunt normally makes three model
+  calls. Large diffs are trimmed by a token budget before they reach the model.
+- **It writes to your pull request.** Treat it as a collaborator with pull-request,
+  issue, and commit-status write access, not a read-only bot.
+- **Some state is in memory.** Per-repo user mappings, rate-limit windows, and
+  delivery dedupe reset on restart; repos fall back to the server token until they
+  are reconnected. Hunt history is in memory unless `DATABASE_URL` is set.
+- **A synchronous hunt can outlive its HTTP request.** A proxy in front of the
+  server may return `524` while the hunt continues. `/connect` starts hunts
+  asynchronously and polls for the result; API callers can send
+  `"async": true` for the same behaviour. Check the pull request before retrying.
+- **A sleeping free instance misses webhooks.** GitHub does not retry failed
+  deliveries. Wake the instance before relying on automatic reviews.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR:
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md),
+then:
 
 ```bash
 npm install
-npm run typecheck && npm test     # CI runs both on every push and PR
+npm run typecheck && npm test
 ```
 
-- Keep the Halloween wording in [`prompts/voice.json`](prompts/voice.json) — the report
-  copy is data, not code.
-- Behaviour changes need a test. The suite is unit + in-process integration, no network.
-- Touch `src/render/landing.html` and CI also rebuilds the GitHub Pages site.
+The test suite is unit plus in-process integration, with no network access.
+Behaviour changes need a test. Keep report wording in `prompts/voice.json` so the
+copy stays data, not code.
 
-## Development
+## Security
 
-- `npm run typecheck` — `tsc --noEmit`
-- `npm test` — vitest (unit + in-process integration tests)
-- CI runs both on every push and pull request (`.github/workflows/ci.yml`); the landing
-  page auto-deploys to GitHub Pages on landing changes.
-
-## Docs
-
-- [`docs/PRIOR_WORK.md`](docs/PRIOR_WORK.md) — what existed before the event vs. what was built during it.
-- [`docs/SUBMISSION.md`](docs/SUBMISSION.md) — paste-ready answers for the submission form.
-- [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) — demo + troubleshooting.
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Please do not open a public issue for a suspected vulnerability.
 
 ## License
 
