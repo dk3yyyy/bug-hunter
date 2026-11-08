@@ -93,6 +93,17 @@
   .rail-nav a:hover { color: var(--ink); padding-left: .3rem; }
   .rail-nav .n { font-family: var(--font-mono); font-size: .68rem; color: var(--dim); letter-spacing: .08em; }
   .rail-foot { border-top: 1px solid var(--line); padding-top: .9rem; font-size: .78rem; color: var(--dim); }
+  .rail-cta {
+    display: flex; align-items: center; justify-content: center; gap: .45rem;
+    min-height: 42px; margin-bottom: .8rem; border-radius: 999px;
+    background: var(--amber); color: #191220; border: 1px solid var(--amber);
+    font: 700 .82rem/1 var(--font-body); text-decoration: none;
+    transition: background-color .15s var(--ease), transform .15s var(--ease);
+  }
+  .rail-cta::after { content: "→"; font-family: var(--font-mono); font-weight: 400; }
+  .rail-foot a.rail-cta { color: #191220; text-decoration: none; }
+  .rail-foot a.rail-cta:hover { color: #191220; background: #f0b075; text-decoration: none; }
+  .rail-cta:active { transform: translateY(1px); }
   .rail-foot a { color: var(--muted); }
   .rail-foot .pulse {
     display: inline-flex; align-items: center; gap: .4rem;
@@ -146,21 +157,22 @@
   .hero-aside .byline { margin-top: .8rem; font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
   .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; margin-top: 2.1rem; }
   .btn {
-    display: inline-flex; align-items: center; gap: .6rem; min-height: 48px;
-    padding: .7rem 1.35rem; border: 1px solid var(--amber); background: var(--amber); color: #191220;
-    font: 700 .95rem/1 var(--font-body); text-decoration: none; border-radius: 2px;
-    transition: transform .15s var(--ease), background-color .15s var(--ease);
+    display: inline-flex; align-items: center; gap: .55rem; min-height: 48px;
+    padding: .78rem 1.5rem; border: 1px solid var(--amber); background: var(--amber); color: #191220;
+    font: 700 .95rem/1 var(--font-body); text-decoration: none; border-radius: 999px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset;
+    transition: transform .15s var(--ease), background-color .15s var(--ease), box-shadow .15s var(--ease);
   }
   .btn::after { content: "→"; font-family: var(--font-mono); font-weight: 400; }
-  .btn:hover { background: #f0b075; }
+  .btn:hover { background: #f0b075; box-shadow: 0 6px 18px -10px rgba(233, 161, 95, .7); }
   .btn:active { transform: translateY(1px); }
   .btn-ghost {
-    display: inline-flex; align-items: center; min-height: 48px; padding: .7rem 1.2rem;
-    border: 1px solid var(--line); color: var(--ink); border-radius: 2px;
+    display: inline-flex; align-items: center; min-height: 48px; padding: .78rem 1.35rem;
+    border: 1px solid var(--line); color: var(--ink); border-radius: 999px;
     font: 500 .95rem/1 var(--font-body); text-decoration: none;
-    transition: border-color .15s var(--ease), color .15s var(--ease);
+    transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease);
   }
-  .btn-ghost:hover { border-color: var(--amber); color: var(--amber); }
+  .btn-ghost:hover { border-color: var(--amber); color: var(--amber); background: rgba(233, 161, 95, .06); }
   .cta-note { margin-top: 1rem; font-size: .84rem; color: var(--dim); max-width: 52ch; }
 
   /* evidence exhibit */
@@ -205,7 +217,7 @@
   .replay {
     font: 500 .72rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
     color: var(--ink); background: transparent; border: 1px solid var(--line);
-    padding: .5rem .8rem; cursor: pointer; border-radius: 2px; min-height: 40px;
+    padding: .55rem 1rem; cursor: pointer; border-radius: 999px; min-height: 40px;
   }
   .replay:hover { border-color: var(--amber); color: var(--amber); }
   .replay:disabled { opacity: .5; cursor: default; }
@@ -348,7 +360,7 @@
   .btn-line {
     font: 500 .78rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
     background: transparent; border: 1px solid var(--line); color: var(--ink);
-    padding: .55rem .8rem; cursor: pointer; border-radius: 2px; min-height: 40px;
+    padding: .6rem 1rem; cursor: pointer; border-radius: 999px; min-height: 40px;
   }
   .btn-line:hover { border-color: var(--amber); color: var(--amber); }
   .btn-line:disabled { opacity: .5; cursor: default; }
@@ -449,6 +461,7 @@
     </nav>
   </div>
   <div class="rail-foot">
+    <a class="rail-cta" href="#connect">Connect a repo</a>
     <span class="pulse">Open source · MIT</span>
     <p><a href="#repo" id="repo-link-rail">GitHub</a> · <a href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Docs</a></p>
   </div>

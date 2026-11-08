@@ -45,6 +45,7 @@ a:hover{text-decoration:underline;text-underline-offset:3px}
 .nav{display:flex;gap:1.2rem;flex-wrap:wrap;margin-left:auto}
 .nav a{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .nav a:hover{color:var(--ink);text-decoration:none}
+.bar .btn{min-height:38px;padding:.5rem 1rem;font-size:.8rem}
 .tag{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:.2rem .5rem}
 .eyebrow{display:block;margin:2.4rem 0 0;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .eyebrow b{color:var(--accent);font-weight:500}
@@ -64,12 +65,12 @@ p{max-width:70ch}
 label{display:block;margin:.9rem 0 .35rem;font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 input,textarea{display:block;width:100%;min-height:46px;margin:0 0 .7rem;padding:.65rem .8rem;border:1px solid var(--line);border-radius:2px;background:transparent;color:var(--ink);font:inherit;transition:border-color .15s var(--ease)}
 input:focus{border-color:var(--accent);outline:none}
-button,.btn{display:inline-flex;align-items:center;gap:.5rem;background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:2px;min-height:46px;padding:.65rem 1.15rem;font:700 .9rem/1 var(--font-body);cursor:pointer;text-decoration:none;transition:transform .12s var(--ease),background-color .15s var(--ease)}
-button:hover,.btn:hover{background:#f0b075;text-decoration:none}
+button,.btn{display:inline-flex;align-items:center;gap:.45rem;background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:999px;min-height:46px;padding:.72rem 1.3rem;font:700 .9rem/1 var(--font-body);cursor:pointer;text-decoration:none;box-shadow:0 1px 0 rgba(255,255,255,.18) inset;transition:transform .12s var(--ease),background-color .15s var(--ease),box-shadow .15s var(--ease)}
+button:hover,.btn:hover{background:#f0b075;text-decoration:none;box-shadow:0 6px 18px -10px rgba(233,161,95,.7)}
 button:active,.btn:active{transform:translateY(1px)}
 button:disabled{opacity:.55;cursor:not-allowed}
-.btn-ghost{display:inline-flex;align-items:center;min-height:46px;padding:.65rem 1.1rem;border:1px solid var(--line);border-radius:2px;color:var(--ink);font-weight:500;font-size:.9rem;text-decoration:none}
-.btn-ghost:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+.btn-ghost{display:inline-flex;align-items:center;min-height:46px;padding:.72rem 1.2rem;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-weight:500;font-size:.9rem;text-decoration:none;transition:border-color .15s var(--ease),color .15s var(--ease),background-color .15s var(--ease)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);background:rgba(233,161,95,.06);text-decoration:none}
 .result{margin-top:.9rem;padding:.75rem .9rem;border:1px solid var(--line);border-left:2px solid var(--accent);font-size:.88rem;color:var(--ink)}
 .result:empty{display:none}
 details{margin:0 0 1rem}
@@ -110,7 +111,7 @@ th{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transf
 }
 `;
 
-function shell(title: string, body: string): string {
+function shell(title: string, body: string, showCta = true): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -136,6 +137,7 @@ function shell(title: string, body: string): string {
     <a href="/connect">Connect</a>
     <a href="/dashboard">Dashboard</a>
   </nav>
+  ${showCta ? '<a class="btn" href="/connect">Connect a repo</a>' : ""}
   <span class="tag">Open source · MIT</span>
 </header>
 <main>${body}</main>
@@ -445,7 +447,7 @@ ${loginCard}
 })();
 </script>`;
 
-  return shell("Bug Hunter — Connect a repo", body);
+  return shell("Bug Hunter — Connect a repo", body, false);
 }
 
 function escapeHtml(s: string): string {
