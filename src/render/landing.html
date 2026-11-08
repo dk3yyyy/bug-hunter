@@ -104,6 +104,20 @@
   .rail-foot a.rail-cta { color: #191220; text-decoration: none; }
   .rail-foot a.rail-cta:hover { color: #191220; background: #f0b075; text-decoration: none; }
   .rail-cta:active { transform: translateY(1px); }
+  .star-cta {
+    display: flex; align-items: center; justify-content: center; gap: .45rem;
+    min-height: 42px; margin-bottom: .8rem; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--ink);
+    font: 500 .82rem/1 var(--font-body); text-decoration: none;
+    transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease);
+  }
+  .star-cta .star { color: var(--amber); font-size: .95rem; line-height: 1; }
+  .star-cta .star-count { font-family: var(--font-mono); font-size: .68rem; color: var(--dim); }
+  .star-cta .star-count:not([hidden])::before { content: "·"; margin-right: .3rem; color: var(--dim); }
+  .rail-foot a.star-cta { color: var(--ink); text-decoration: none; }
+  .rail-foot a.star-cta:hover { color: var(--amber); border-color: var(--amber); background: rgba(233, 161, 95, .06); text-decoration: none; }
+  .star-inline { display: inline-flex; align-items: center; gap: .4rem; }
+  .star-inline .star { color: var(--amber); }
   .rail-foot a { color: var(--muted); }
   .rail-foot .pulse {
     display: inline-flex; align-items: center; gap: .4rem;
@@ -461,6 +475,7 @@
     </nav>
   </div>
   <div class="rail-foot">
+    <a class="star-cta" href="https://github.com/dk3yyyy/bug-hunter"><span class="star" aria-hidden="true">★</span> Star on GitHub <span class="star-count" data-repo="dk3yyyy/bug-hunter" hidden></span></a>
     <a class="rail-cta" href="#connect">Connect a repo</a>
     <span class="pulse">Open source · MIT</span>
     <p><a href="#repo" id="repo-link-rail">GitHub</a> · <a href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Docs</a></p>
@@ -810,6 +825,7 @@
       <div class="cta-row">
         <a class="btn" href="#connect" id="connect-link-2">Connect a repo</a>
         <a class="btn-ghost" href="https://github.com/dk3yyyy/bug-hunter#readme" id="repo-link-2">Read the docs</a>
+        <a class="btn-ghost" href="https://github.com/dk3yyyy/bug-hunter"><span class="star-inline"><span class="star" aria-hidden="true">★</span> Star on GitHub</span></a>
       </div>
     </section>
 
@@ -827,7 +843,7 @@
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/EVAL.md">Eval</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">Security</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/CONTRIBUTING.md">Contributing</a>
-          <a href="https://github.com/dk3yyyy/bug-hunter">GitHub</a>
+          <a href="https://github.com/dk3yyyy/bug-hunter">Star on GitHub</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/LICENSE">MIT License</a>
         </nav>
       </div>
@@ -989,6 +1005,31 @@
   } else {
     showAll();
   }
+
+  /* ---- live GitHub star count (progressive: hidden until known) ---- */
+  (function () {
+    var els = Array.prototype.slice.call(document.querySelectorAll('.star-count'));
+    if (!els.length || !window.fetch) return;
+    var KEY = 'bh-stars-v1';
+    function paint(n) {
+      if (n < 1) return; // a lone "0" reads as unfinished; show nothing until there is a star
+      var label = n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
+      els.forEach(function (el) { el.textContent = label; el.hidden = false; });
+    }
+    try {
+      var cached = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+      if (cached && Date.now() - cached.t < 600000) { paint(cached.n); return; }
+    } catch (e) { /* storage blocked */ }
+    fetch('https://api.github.com/repos/dk3yyyy/bug-hunter', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && typeof j.stargazers_count === 'number') {
+          paint(j.stargazers_count);
+          try { sessionStorage.setItem(KEY, JSON.stringify({ n: j.stargazers_count, t: Date.now() })); } catch (e) { /* ignore */ }
+        }
+      })
+      .catch(function () { /* no count, button still works */ });
+  })();
 })();
 </script>
 </body>

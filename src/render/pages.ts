@@ -46,7 +46,9 @@ a:hover{text-decoration:underline;text-underline-offset:3px}
 .nav a{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .nav a:hover{color:var(--ink);text-decoration:none}
 .bar .btn{min-height:38px;padding:.5rem 1rem;font-size:.8rem}
-.tag{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:.2rem .5rem}
+.bar .bar-star{min-height:38px;padding:.5rem .9rem;font-size:.8rem}
+.bar-star .star{color:var(--accent);font-size:.95rem;line-height:1}
+.bar-star:hover .star{color:var(--accent)}
 .eyebrow{display:block;margin:2.4rem 0 0;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .eyebrow b{color:var(--accent);font-weight:500}
 h1,h2{font-family:var(--font-display);font-weight:900;text-transform:uppercase;letter-spacing:-.035em;line-height:1;margin:0;text-wrap:balance}
@@ -69,7 +71,7 @@ button,.btn{display:inline-flex;align-items:center;gap:.45rem;background:var(--a
 button:hover,.btn:hover{background:#f0b075;text-decoration:none;box-shadow:0 6px 18px -10px rgba(233,161,95,.7)}
 button:active,.btn:active{transform:translateY(1px)}
 button:disabled{opacity:.55;cursor:not-allowed}
-.btn-ghost{display:inline-flex;align-items:center;min-height:46px;padding:.72rem 1.2rem;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-weight:500;font-size:.9rem;text-decoration:none;transition:border-color .15s var(--ease),color .15s var(--ease),background-color .15s var(--ease)}
+.btn-ghost{display:inline-flex;align-items:center;gap:.45rem;min-height:46px;padding:.72rem 1.2rem;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-weight:500;font-size:.9rem;text-decoration:none;transition:border-color .15s var(--ease),color .15s var(--ease),background-color .15s var(--ease)}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent);background:rgba(233,161,95,.06);text-decoration:none}
 .result{margin-top:.9rem;padding:.75rem .9rem;border:1px solid var(--line);border-left:2px solid var(--accent);font-size:.88rem;color:var(--ink)}
 .result:empty{display:none}
@@ -95,6 +97,8 @@ th{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transf
 .foot-links{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;margin-top:.7rem;font-family:var(--font-mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase}
 .foot-links a{color:var(--muted)}
 .foot-links a:hover{color:var(--accent)}
+.foot-star{margin-top:.9rem}
+.foot-star .star{color:var(--accent);font-size:1rem;line-height:1}
 .empty{padding:1.1rem 1.3rem;color:var(--muted);font-size:.9rem}
 .empty code{color:var(--ink)}
 .reveal{animation:rise .5s var(--ease) both}
@@ -107,7 +111,6 @@ th{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transf
 }
 @media (max-width:480px){
   .grid{grid-template-columns:minmax(0,1fr)}
-  .tag{display:none}
 }
 `;
 
@@ -138,11 +141,12 @@ function shell(title: string, body: string, showCta = true): string {
     <a href="/dashboard">Dashboard</a>
   </nav>
   ${showCta ? '<a class="btn" href="/connect">Connect a repo</a>' : ""}
-  <span class="tag">Open source · MIT</span>
+  <a class="btn-ghost bar-star" href="https://github.com/dk3yyyy/bug-hunter"><span class="star" aria-hidden="true">★</span> Star on GitHub</a>
 </header>
 <main>${body}</main>
 <footer class="foot">
   <p>Bug Hunter · powered by your model · no telemetry.</p>
+  <a class="btn-ghost foot-star" href="https://github.com/dk3yyyy/bug-hunter"><span class="star" aria-hidden="true">★</span> Star on GitHub</a>
   <nav class="foot-links" aria-label="Footer">
     <a href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Docs</a>
     <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/QUICKSTART.md">Quickstart</a>

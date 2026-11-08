@@ -40,6 +40,12 @@ describe("landing page", () => {
     expect(html).toContain("https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md");
   });
 
+  it("offers a Star on GitHub button", () => {
+    expect(html).toContain("Star on GitHub");
+    expect(html).toContain('class="star-count"');
+    expect(html).toContain('href="https://github.com/dk3yyyy/bug-hunter"');
+  });
+
   it("ships share metadata and a favicon", () => {
     expect(html).toContain('property="og:image"');
     expect(html).toContain('name="twitter:card"');
