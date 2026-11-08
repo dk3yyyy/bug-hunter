@@ -17,8 +17,8 @@ export function renderLanding(opts: { connectUrl: string; repoUrl: string }): st
 
 const SHELL_CSS = `
 :root{
-  --bg:#161c1a;--surface:#1f2725;--ink:#e3e2da;--muted:#8e948d;--line:#33403c;
-  --accent:#9fc7b8;--accent-ink:#161c1a;--crit:#e0a96d;
+  --bg:#14101b;--surface:#1d1726;--ink:#efe9df;--muted:#a396ad;--line:#3a2f45;
+  --accent:#e9a15f;--accent-ink:#191220;--crit:#f0a35e;
   --font-display:"Red Hat Display",system-ui,sans-serif;
   --font-body:"Red Hat Text",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -66,21 +66,22 @@ code,.mono{font-family:var(--font-mono);font-size:.86em;background:color-mix(in 
 table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.94rem}
 th,td{text-align:left;border-bottom:1px solid var(--line);padding:11px 12px;vertical-align:top}
 th{color:var(--muted);font-weight:500}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 8px}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
 .stat .n{display:block;font-family:var(--font-display);font-weight:900;font-size:2rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
 .stat .lbl{color:var(--muted);font-size:.82rem;margin-top:6px}
 .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
-.b-possessed{background:var(--crit);color:#161c1a}
-.b-haunted{background:#6b3a2a;color:#ffd7c2}
-.b-restless{background:#3f4a2a;color:#e6f0c2}
-.b-whispers{background:#263a33;color:#bfe6d5}
-.b-clear{background:#1f3327;color:#9fe3b4}
+.b-possessed{background:var(--crit);color:#191220}
+.b-haunted{background:#5e3140;color:#ffd3dd}
+.b-restless{background:#4a3760;color:#e4d6ff}
+.b-whispers{background:#352c4a;color:#d3c6f2}
+.b-clear{background:#2c3a35;color:#b7e6d6}
 .foot{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 .reveal{animation:rise .5s var(--ease) both}
 @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.reveal{animation:none}}
-@media (max-width:820px){.cols{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){.cols{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.grid{grid-template-columns:minmax(0,1fr)}}
 `;
 
 function shell(title: string, body: string): string {
@@ -90,7 +91,7 @@ function shell(title: string, body: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#161c1a">
+<meta name="theme-color" content="#14101b">
 <title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,7 +191,7 @@ ${learnings
   <div class="stat"><span class="n">${stats.learnings}</span><span class="lbl">learnings</span></div>
   <div class="stat"><span class="n">${formatUsd(stats.monthSpend)}</span><span class="lbl">spent this month${cost.capUsd > 0 ? ` of ${formatUsd(cost.capUsd)}` : ""}</span></div>
   <div class="stat"><span class="n">${formatUsd(stats.avgCost)}</span><span class="lbl">avg cost / hunt</span></div>
-  <div class="stat"><span class="n">${stats.tokens.toLocaleString("en-US")}</span><span class="lbl">tokens (last ${stats.hunts})</span></div>
+  <div class="stat"><span class="n">${stats.tokens.toLocaleString("en-US")}</span><span class="lbl">tokens${stats.hunts ? ` (last ${stats.hunts})` : ""}</span></div>
 </div>
 <h2 style="margin-top:32px">Recent hunts</h2>
 ${table}

@@ -4,10 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bug Hunter: an AI code reviewer for haunted pull requests</title>
-<meta name="description" content="Bug Hunter reviews every GitHub pull request with your own model, has a second pass try to disprove each finding, and posts only the bugs that survive in a Séance Report.">
+<meta name="description" content="Bug Hunter reviews every GitHub pull request with your own model, has a second pass try to disprove each finding, and posts only the bugs that survive. Open source (MIT), bring your own model, run it locally or self-host.">
 <meta property="og:title" content="Bug Hunter: your pull request is haunted">
-<meta property="og:description" content="An open-source AI code reviewer. Your model finds the bugs, a skeptical second pass throws out false alarms, and n8n logs every hunt to Google Sheets and Gmail.">
+<meta property="og:description" content="An open-source AI code reviewer. Your model finds the bugs, a skeptical second pass throws out false alarms, and maintainers can teach it what not to flag.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://raw.githubusercontent.com/dk3yyyy/bug-hunter/main/docs/landing.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="The Bug Hunter landing page: a pull request diff with one verified finding.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Bug Hunter: your pull request is haunted">
+<meta name="twitter:description" content="An open-source AI code reviewer with a skeptical second pass, inline fixes and a themed Séance Report.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/dk3yyyy/bug-hunter/main/docs/landing.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@900&family=Red+Hat+Text:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -17,27 +26,27 @@
   /* Hallmark · dismissed 3 · side keys mark severity on four boxes, a functional key kept at polish depth */
   /* Hallmark · answered F15 · kept layout uses tighter gaps inside the bestiary cards and pipeline strip than between major split columns */
   :root {
-    --bg: #161c1a;
-    --ink: #e3e2da;
-    --muted: #8e948d;
-    --line: #2c3532;
-    --ember: #9fc7b8;
-    --spirit: #b9d4c8;
-    --panel: #1f2725;
-    --panel-line: #33403c;
-    --panel-ink: #e3e2da;
-    --panel-muted: #8e948d;
-    --panel-hl: #263230;
-    --add: #7bd88f;
-    --del: #ff8a7a;
-    --crit: #e0a96d;
-    --btn-bg: #9fc7b8;
-    --btn-ink: #161c1a;
+    --bg: #14101b;
+    --ink: #efe9df;
+    --muted: #a396ad;
+    --line: #3a2f45;
+    --ember: #e9a15f;
+    --spirit: #cbb8f0;
+    --panel: #1d1726;
+    --panel-line: #423650;
+    --panel-ink: #efe9df;
+    --panel-muted: #a396ad;
+    --panel-hl: #2a2136;
+    --add: #8bd6a3;
+    --del: #ff8f7f;
+    --crit: #f0a35e;
+    --btn-bg: #e9a15f;
+    --btn-ink: #191220;
     --font-display: "Red Hat Display", system-ui, sans-serif;
     --font-body: "Red Hat Text", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-    --shadow-pr: rgba(0, 0, 0, .45);
-    --code-shade: rgba(255, 255, 255, .05);
+    --shadow-pr: rgba(8, 4, 14, .5);
+    --code-shade: rgba(255, 255, 255, .06);
     --ease: cubic-bezier(.2, .7, .2, 1);
     color-scheme: dark;
   }
@@ -228,13 +237,31 @@
   .end { padding-block: clamp(3rem, 7vw, 5.5rem); }
   .end h2 { max-width: 18ch; }
   .end p { margin-top: 1rem; color: var(--muted); }
+
+  /* features grid */
+  .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 2.2rem; }
+  .feature { padding: 1.1rem 1.15rem; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel) 55%, transparent); }
+  .feature .kicker { display: inline-block; font-family: var(--font-mono); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ember); }
+  .feature h3 { font-size: 1.2rem; margin-top: .5rem; }
+  .feature p { margin-top: .45rem; color: var(--muted); font-size: .94rem; line-height: 1.5; }
+  .feature code { font-size: .85em; background: var(--code-shade); padding: .08em .35em; border-radius: 4px; color: var(--ink); }
+  .tools-note { margin-top: 1.4rem; font-size: .9rem; color: var(--muted); }
+
+  /* provider chips */
+  .providers { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
+  .providers span { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: .28rem .7rem; }
+
   footer { padding-block: 1.5rem 2.5rem; font-size: .92rem; color: var(--muted); border-top: 1px solid var(--line); }
   footer p { max-width: none; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: .6rem 1.3rem; margin-top: .7rem; font-size: .9rem; }
+  .foot-links a { color: var(--muted); }
+  .foot-links a:hover { color: var(--ink); }
 
   @media (max-width: 980px) {
     .looks { grid-template-columns: minmax(0, 1fr); }
     .pipe { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .pipe li::after { display: none; }
+    .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 860px) {
     .hero, .split, .outs, .sees { grid-template-columns: minmax(0, 1fr); }
@@ -242,6 +269,7 @@
   @media (max-width: 560px) {
     .creatures { grid-template-columns: minmax(0, 1fr); }
     .meter li { font-size: .72rem; padding-inline: .1rem; }
+    .features { grid-template-columns: minmax(0, 1fr); }
   }
   @media (prefers-reduced-motion: reduce) {
     .glow { animation: none; }
@@ -273,7 +301,9 @@
     <a class="brand" href="#top">Bug Hunter</a>
     <nav class="nav" aria-label="Main">
       <a class="link link-wide" href="#how">How it works</a>
+      <a class="link link-wide" href="#features">Features</a>
       <a class="link link-wide" href="#bestiary">Bestiary</a>
+      <a class="link link-wide" href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Docs</a>
       <a class="link" href="/dashboard">Dashboard</a>
       <a class="link" href="#repo">GitHub</a>
     </nav>
@@ -288,7 +318,7 @@
           <a class="btn" href="#connect" id="connect-link">Connect a repo</a>
           <a class="btn-ghost" href="#repo" id="repo-link">View the repo</a>
         </div>
-        <p class="cta-note">Free and open source. Gemini by default, or bring your own key for Claude, OpenAI, DeepSeek, OpenRouter, Ollama or any OpenAI-compatible model.</p>
+        <p class="cta-note">Free and open source under MIT. Gemini by default, or bring your own key for Claude, OpenAI, DeepSeek, OpenRouter, Ollama or any OpenAI-compatible model.</p>
       </div>
 
       <div class="pr" data-ui aria-label="Example pull request review">
@@ -378,6 +408,62 @@
           <span class="never">The rejected finding is never posted.</span>
         </div>
       </div>
+    </section>
+
+
+    <section class="block" id="features" aria-labelledby="feat-h">
+      <div class="intro">
+        <h2 id="feat-h">The rest of the toolkit.</h2>
+        <p>Reviewing the diff is the headline. These are the things that make it hold up week after week: context, memory, a budget, and a way to prove it still works.</p>
+      </div>
+      <div class="features">
+        <article class="feature">
+          <span class="kicker">Context</span>
+          <h3>Linked issues</h3>
+          <p>Reads <code>Fixes #12</code>, cross-repo refs and Jira or Linear keys, then checks whether the diff actually closes them. A <code>🧾 Linked issues</code> block says what was addressed and what was not.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Signal flow</span>
+          <h3>Sequence diagrams</h3>
+          <p>When a change crosses components, the Séance Report adds a Mermaid <code>🧭 Signal flow</code> diagram built only from participants that appear in the diff.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Memory</span>
+          <h3>It learns from you</h3>
+          <p>Reply <code>@bughunter wrong: …</code> on a review comment and the correction is stored per repo, then applied to later reviews. <code>learnings</code> lists them; <code>forget</code> drops one.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Cost</span>
+          <h3>Spend, capped</h3>
+          <p>Every hunt records tokens and an estimated cost. Set <code>MONTHLY_COST_CAP_USD</code> and new hunts stop before the first model call once the cap is reached. The dashboard shows spend per repo and per hunt.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Local</span>
+          <h3>Runs on your machine</h3>
+          <p><code>bughunter review --staged</code> gives the same pipeline with no GitHub and no comments. Output as a human report, JSON, or a <code>prompt-only</code> list you can paste into a coding agent.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Proof</span>
+          <h3>Eval in CI</h3>
+          <p>A fixture set with planted bugs and clean PRs runs the real pipeline against a mock provider. Precision, recall, false positives per clean PR and invalid positions are a CI gate, with no key or network.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Scanners</span>
+          <h3>Deterministic linters</h3>
+          <p>gitleaks, semgrep and eslint run alongside the model where a checkout exists. Findings are advisory context, secrets are scrubbed, and a missing tool is skipped, never fatal.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Durable</span>
+          <h3>Postgres when you want it</h3>
+          <p>Hunt history, repo auth mappings, learnings and installed repos survive restarts when <code>DATABASE_URL</code> is set, with an automatic in-memory fallback for local work.</p>
+        </article>
+        <article class="feature">
+          <span class="kicker">Async</span>
+          <h3>No proxy timeouts</h3>
+          <p><code>POST /api/hunt</code> with <code>async: true</code> returns a handle immediately and the client polls for the result, so a two-minute review cannot be cut off by a gateway.</p>
+        </article>
+      </div>
+      <p class="tools-note">Everything above is in the repo today — <a href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">docs</a> cover the CLI, costs, learnings, eval and linters.</p>
     </section>
 
 
@@ -487,8 +573,11 @@
           <ul class="needs">
             <li>A GitHub token, or the Bug Hunter GitHub App</li>
             <li>An API key for the model you already use, Gemini, Claude, OpenAI or a local one</li>
-            <li>n8n, if you want the Hunt Ledger and Gmail alerts</li>
+            <li>Optional: Postgres for durable history, n8n for the Hunt Ledger and Gmail alerts</li>
           </ul>
+          <div class="providers" aria-label="Supported model providers">
+            <span>Gemini</span><span>Anthropic</span><span>OpenAI</span><span>DeepSeek</span><span>OpenRouter</span><span>Ollama</span><span>OpenAI-compatible</span><span>OpenCode Go</span>
+          </div>
         </div>
         <div class="term" aria-labelledby="term-h">
           <div class="term-head">
@@ -497,25 +586,36 @@
           </div>
 <pre class="term-body"><code><span class="cmd">git clone https://github.com/dk3yyyy/bug-hunter.git</span>
 <span class="cmd">cd bug-hunter &amp;&amp; npm install</span>
-<span class="cmd">cp .env.example .env</span>   <span class="c"># add your GitHub token and one model key</span>
-<span class="cmd">npm run dev</span>            <span class="c"># http://localhost:3000</span></code></pre>
+<span class="cmd">cp .env.example .env</span>   <span class="c"># add your token + model key</span>
+<span class="cmd">npm run dev</span>            <span class="c"># http://localhost:3000</span>
+<span class="cmd">npm run cli -- review --staged</span>  <span class="c"># review before you push</span></code></pre>
           <p class="term-foot">Then open a pull request, or paste one into <code>/connect</code> to hunt it straight away.</p>
         </div>
       </div>
     </section>
 
     <section class="end" aria-labelledby="end-h">
-      <h2 id="end-h">Open source now, OpenReview next.</h2>
-      <p>Bug Hunter is the first step toward OpenReview, an open, bring-your-own-model alternative to hosted code review tools.</p>
+      <h2 id="end-h">Haunt your next pull request.</h2>
+      <p>Install the App on a repo, or run it locally against a branch. MIT licensed, no telemetry, and your keys and code stay where you put them.</p>
       <div class="cta-row">
         <a class="btn" href="#connect" id="connect-link-2">Connect a repo</a>
-        <a class="btn-ghost" href="#repo" id="repo-link-2">View the repo</a>
+        <a class="btn-ghost" href="https://github.com/dk3yyyy/bug-hunter#readme" id="repo-link-2">Read the docs</a>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>Open source · bring your own model</p>
+    <p>Open source under the MIT license · bring your own model.</p>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/QUICKSTART.md">Quickstart</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/CONFIGURATION.md">Configuration</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/SELF-HOSTING.md">Self-hosting</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/CLI.md">CLI</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/EVAL.md">Eval</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/dk3yyyy/bug-hunter">GitHub</a>
+    </nav>
   </footer>
 </div>
 
@@ -527,7 +627,7 @@
   (function () {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var els = Array.prototype.slice.call(
-      document.querySelectorAll('main section, .item, .pipe li, .creature, .stat, .out, .steps li')
+      document.querySelectorAll('main section, .item, .pipe li, .creature, .stat, .out, .steps li, .feature, .providers span')
     );
     if (!els.length) return;
     els.forEach(function (el, i) { el.classList.add('reveal'); el.style.transitionDelay = (i % 4) * 70 + 'ms'; });
