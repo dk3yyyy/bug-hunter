@@ -37,6 +37,7 @@ describe("server (in-process)", () => {
     expect(html).toContain('id="hunt-btn"');
     expect(html).toContain('id="pr_url"');
     expect(html).toContain('id="secret"');
+    expect(html).toContain("Star on GitHub");
   });
 
   it("always shows the connect-a-repo form, even without PUBLIC_URL", async () => {
