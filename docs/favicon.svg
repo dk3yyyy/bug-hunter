@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bug Hunter">
+  <path fill="#e9a15f" d="M32 4C19.8 4 11 13.6 11 26v24l5.25-3.2 5.25 3.2 5.25-3.2 5.25 3.2 5.25-3.2 5.25 3.2 5.25-3.2 5.25 3.2V26C53 13.6 44.2 4 32 4z"/>
+  <circle cx="24.5" cy="27" r="3.4" fill="#14101b"/>
+  <circle cx="39.5" cy="27" r="3.4" fill="#14101b"/>
+  <path d="M29 37h6" stroke="#14101b" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

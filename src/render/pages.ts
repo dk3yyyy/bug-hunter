@@ -75,10 +75,16 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent);background:rgba(233,161,95,.06);text-decoration:none}
 .result{margin-top:.9rem;padding:.75rem .9rem;border:1px solid var(--line);border-left:2px solid var(--accent);font-size:.88rem;color:var(--ink)}
 .result:empty{display:none}
+.result[aria-busy="true"]{border-left-color:var(--lilac);color:var(--muted)}
+button.is-loading{position:relative;padding-right:2.7rem;opacity:.9;cursor:progress}
+button.is-loading::after{content:"";position:absolute;right:1rem;top:50%;width:14px;height:14px;margin-top:-7px;border:2px solid rgba(25,18,32,.35);border-top-color:#191220;border-radius:50%;animation:bhspin .7s linear infinite}
+@keyframes bhspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){button.is-loading::after{animation-duration:2s}}
 details{margin:0 0 1rem}
 summary{cursor:pointer;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:.8rem}
 summary:hover{color:var(--ink)}
-code,.mono{font-family:var(--font-mono);font-size:.84em;background:rgba(236,230,220,.07);padding:1px 5px;border-radius:2px}
+code{font-family:var(--font-mono);font-size:.84em;background:rgba(236,230,220,.07);padding:1px 5px;border-radius:2px}
+.mono{font-family:var(--font-mono);font-size:.86em}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
 th,td{text-align:left;border-bottom:1px solid var(--line-soft);padding:.65rem .8rem;vertical-align:top}
 tr:last-child td{border-bottom:0}
@@ -114,7 +120,15 @@ th{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transf
 }
 `;
 
-function shell(title: string, body: string, showCta = true): string {
+function shell(
+  title: string,
+  body: string,
+  opts: { showCta?: boolean; description?: string } = {},
+): string {
+  const showCta = opts.showCta !== false;
+  const description =
+    opts.description ??
+    "Bug Hunter: an open-source AI pull request reviewer. Bring your own model; verified findings, inline fixes and a themed Séance Report.";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -122,10 +136,21 @@ function shell(title: string, body: string, showCta = true): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#100d15">
-<meta name="description" content="Bug Hunter: an open-source AI pull request reviewer. Bring your own model; verified findings, inline fixes and a themed Séance Report.">
+<meta name="description" content="${description}">
 <meta property="og:title" content="${title}">
-<meta property="og:description" content="An open-source AI code reviewer with a skeptical second pass and a themed Séance Report.">
+<meta property="og:description" content="${description}">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://dk3yyyy.github.io/bug-hunter/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:description" content="${description}">
+<meta name="twitter:image" content="https://dk3yyyy.github.io/bug-hunter/og.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -152,10 +177,22 @@ function shell(title: string, body: string, showCta = true): string {
     <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/QUICKSTART.md">Quickstart</a>
     <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/CONFIGURATION.md">Configuration</a>
     <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">Security</a>
+    <a href="/privacy">Privacy</a>
     <a href="https://github.com/dk3yyyy/bug-hunter">GitHub</a>
   </nav>
 </footer>
-</div></body>
+</div>
+<script>
+(function(){
+  if (navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true) return;
+  var path = location.pathname;
+  try { var k = 'bh-pv:' + path; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) {}
+  var body = JSON.stringify({ path: path });
+  if (navigator.sendBeacon) { navigator.sendBeacon('/api/analytics/collect', body); return; }
+  fetch('/api/analytics/collect', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function(){});
+})();
+</script>
+</body>
 </html>`;
 }
 
@@ -171,6 +208,7 @@ export function renderDashboard(
   hunts: HuntRecord[],
   learnings: Learning[] = [],
   cost: { monthSpendUsd: number; capUsd: number } = { monthSpendUsd: 0, capUsd: 0 },
+  traffic: { total: number; top: Array<{ path: string; count: number }> } = { total: 0, top: [] },
 ): string {
   const rows = [...hunts].slice(-50).reverse();
   const priced = rows.filter((r) => typeof r.costUsd === "number");
@@ -243,7 +281,17 @@ ${learnings
 <h2>Recent hunts</h2>
 <div class="panel">${table}</div>
 <h2>Learnings</h2>
-<div class="panel">${learningRows}</div>`,
+<div class="panel">${learningRows}</div>
+<h2>Traffic · last 7 days</h2>
+<div class="panel">${
+      traffic.total
+        ? `<table><thead><tr><th>Page</th><th>Views</th></tr></thead><tbody>${traffic.top
+            .map((t) => `<tr><td class="mono">${escapeHtml(t.path)}</td><td>${t.count}</td></tr>`)
+            .join("")}</tbody></table>
+<div class="empty">${traffic.total.toLocaleString("en-US")} page view${traffic.total === 1 ? "" : "s"} · first-party, no cookies</div>`
+        : `<div class="empty">No page views recorded yet. Views are counted by a cookie-less beacon; Do Not Track is respected.</div>`
+    }</div>`,
+    { description: "Hunt history, reviewer corrections and LLM spend for this Bug Hunter instance." },
   );
 }
 
@@ -264,6 +312,7 @@ export function renderSummoned(repos: string[] = [], installationId?: string): s
 <p class="lede">${installationId ? `Installation <code>${escapeHtml(installationId)}</code> connected. ` : ""}Open a pull request and watch the hunt begin.</p>
 <div class="card"><h2>Connected repos</h2>${repoList}</div>
 <p><a class="btn-ghost" href="/dashboard">View recent hunts →</a></p>`,
+    { description: "Bug Hunter is installed. Open a pull request to summon the first hunt." },
   );
 }
 
@@ -388,6 +437,12 @@ ${loginCard}
     out.innerHTML = msg;
   }
 
+  function busy(btn, on, out) {
+    btn.disabled = on;
+    btn.classList.toggle('is-loading', on);
+    if (out) out.setAttribute('aria-busy', String(on));
+  }
+
   function showDone(out, rec) {
     out.innerHTML = '🕯️ <b>Hunt complete.</b> Haunting level: <b>' + esc(rec.hauntingLevel) +
       '</b> · ' + esc(rec.keptCount) + ' spirit(s) · ' + esc(rec.exorcised || 0) + ' exorcised · ' +
@@ -400,11 +455,11 @@ ${loginCard}
     var url = document.getElementById('pr_url').value.trim();
     if (!url) { out.textContent = '✗ Enter a PR URL.'; return; }
     out.innerHTML = '🔦 Hunting… this can take a minute.';
-    huntBtn.disabled = true;
+    busy(huntBtn, true, out);
     // Async: start the hunt, then poll until the result exists. Avoids proxy
     // timeouts when a hunt takes ~2 minutes.
     post('/api/hunt', { pr_url: url, async: true }).then(function (r) {
-      if (!r.ok) { huntBtn.disabled = false; fail(out, r); return; }
+      if (!r.ok) { busy(huntBtn, false, out); fail(out, r); return; }
       var id = r.j.id;
       var started = Date.now();
       function poll() {
@@ -415,21 +470,21 @@ ${loginCard}
           .then(function (x) {
             if (x.status === 404) {
               if (Date.now() - started > 240000) {
-                huntBtn.disabled = false;
+                busy(huntBtn, false, out);
                 out.textContent = '✗ Timed out waiting for the hunt. Check the pull request for the report.';
                 return;
               }
               setTimeout(poll, 3000);
               return;
             }
-            huntBtn.disabled = false;
+            busy(huntBtn, false, out);
             if (x.status >= 400) { fail(out, { j: x.rec, status: x.status }); return; }
             showDone(out, x.rec);
           })
           .catch(function () { setTimeout(poll, 3000); });
       }
       poll();
-    }).catch(function (e) { huntBtn.disabled = false; out.textContent = '✗ ' + e.message; });
+    }).catch(function (e) { busy(huntBtn, false, out); out.textContent = '✗ ' + e.message; });
   });
 
   var connectBtn = document.getElementById('connect-btn');
@@ -439,19 +494,19 @@ ${loginCard}
     var publicUrl = document.getElementById('public_url').value.trim();
     if (!repo) { out.textContent = '✗ Enter owner/name.'; return; }
     out.innerHTML = '🕸️ Connecting…';
-    connectBtn.disabled = true;
+    busy(connectBtn, true, out);
     post('/api/connect', { repo: repo, public_url: publicUrl }).then(function (r) {
-      connectBtn.disabled = false;
+      busy(connectBtn, false, out);
       if (!r.ok) { fail(out, r); return; }
       var hooks = 'https://github.com/' + encodeURI(r.j.repo) + '/settings/hooks';
       out.innerHTML = (r.j.created ? '✅ Webhook created on <b>' : '✅ Already connected: <b>') + esc(r.j.repo) +
         '</b>. Open a PR to trigger a hunt. <a href="' + esc(hooks) + '" target="_blank" rel="noreferrer">View the webhook</a>';
-    }).catch(function (e) { connectBtn.disabled = false; out.textContent = '✗ ' + e.message; });
+    }).catch(function (e) { busy(connectBtn, false, out); out.textContent = '✗ ' + e.message; });
   });
 })();
 </script>`;
 
-  return shell("Bug Hunter — Connect a repo", body, false);
+  return shell("Bug Hunter — Connect a repo", body, { showCta: false, description: "Connect a GitHub repository to Bug Hunter or hunt a pull request now. Bring your own model; no telemetry." });
 }
 
 function escapeHtml(s: string): string {
@@ -476,5 +531,47 @@ export function renderNotFound(): string {
     <p><a class="btn" href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Read the docs →</a></p>
   </div>
 </div>`,
+  );
+}
+
+/** Privacy policy: what the app stores, and what leaves the server. */
+export function renderPrivacy(): string {
+  return shell(
+    "Bug Hunter — Privacy",
+    `<span class="eyebrow"><b>Policy</b> · privacy and data</span>
+<h1>Privacy, <em>plainly.</em></h1>
+<p class="lede">Bug Hunter is open source. This page describes what the hosted instance and a self-hosted copy store, what leaves your server, and how to turn features off. Last updated 2026-11-08.</p>
+
+<div class="panel" style="padding:1.3rem">
+  <h2 style="margin-top:0">What is processed</h2>
+  <p>To review a pull request, Bug Hunter sends the pull-request diff, title, description, linked issue text and selected repository files to the <strong>model provider you configure</strong> (Google, Anthropic, OpenAI, DeepSeek, OpenRouter, an OpenAI-compatible endpoint, or a local Ollama server). Those requests are subject to that provider's terms. Your API key stays in the server environment.</p>
+  <p>Repository rule files (<code>.bughunter.md</code>, <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>.cursorrules</code>) are read from the base branch and sent with the review. API keys and secrets are scrubbed from logs and outgoing payloads.</p>
+
+  <h2>What is stored</h2>
+  <p>When <code>DATABASE_URL</code> is set, the server keeps:</p>
+  <ul>
+    <li><strong>Hunt history</strong> — repository, pull-request number/title/URL, finding counts, token usage and estimated cost.</li>
+    <li><strong>Repo authorisation mapping</strong> — the GitHub login and that user's token, encrypted with AES-256-GCM using <code>SESSION_SECRET</code>. Tokens are never stored in plaintext.</li>
+    <li><strong>Reviewer learnings</strong> — the correction text and a link to the comment it came from.</li>
+    <li><strong>Installed repositories</strong> — the list GitHub reports for the App installation.</li>
+    <li><strong>Page views</strong> — the path and a timestamp, with no IP address, user agent or cookie identifier.</li>
+  </ul>
+  <p>Without <code>DATABASE_URL</code> the same records live in process memory and disappear on restart. There are no third-party analytics scripts, ad trackers or tracking cookies.</p>
+
+  <h2>Cookies and analytics</h2>
+  <p>If GitHub login is enabled, one signed session cookie keeps you signed in. It is HTTP-only and encrypted. The site counts page views with a first-party beacon to this server; it stores only the path and time, and it is skipped when your browser sends Do Not Track or Global Privacy Control. Nothing is sent to a third party.</p>
+
+  <h2>Third parties</h2>
+  <p>GitHub (webhooks and API), the model provider you choose, and — only if you configure it — your own n8n webhook. There are no other outbound integrations.</p>
+
+  <h2>Retention and deletion</h2>
+  <p>Records are kept until the operator deletes them. Delete hunts or learnings through the dashboard/API, clear the database tables, or remove the deployment. For the hosted demo, open a GitHub issue in the repository to request deletion.</p>
+
+  <h2>Self-hosting</h2>
+  <p>If you run Bug Hunter yourself, you are the data controller. You decide which model provider receives diffs, whether Postgres is used, and whether n8n is configured. Nothing is sent anywhere else.</p>
+
+  <p class="hint" style="margin-top:1.2rem">Questions or removal requests: open an issue at <a href="https://github.com/dk3yyyy/bug-hunter/issues">github.com/dk3yyyy/bug-hunter/issues</a>. Security reports: see <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+</div>`,
+    { description: "What Bug Hunter stores, what leaves your server, and how to self-host without third-party analytics." },
   );
 }

@@ -8,15 +8,22 @@
 <meta property="og:title" content="Bug Hunter: your pull request is haunted">
 <meta property="og:description" content="An open-source AI code reviewer. Your model finds the bugs, a skeptical second pass throws out false alarms, and maintainers can teach it what not to flag.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://raw.githubusercontent.com/dk3yyyy/bug-hunter/main/docs/landing.png">
+<meta property="og:image" content="https://dk3yyyy.github.io/bug-hunter/og.png">
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="The Bug Hunter landing page: a pull request diff with one verified finding.">
+<meta property="og:image:alt" content="The Bug Hunter landing page: the dossier hero, a diff and one verified finding.">
+<meta property="og:image:secure_url" content="https://dk3yyyy.github.io/bug-hunter/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Bug Hunter: your pull request is haunted">
 <meta name="twitter:description" content="An open-source AI code reviewer with a skeptical second pass, inline fixes and a themed Séance Report.">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/dk3yyyy/bug-hunter/main/docs/landing.png">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>">
+<meta name="twitter:image" content="https://dk3yyyy.github.io/bug-hunter/og.png">
+<meta name="twitter:image:alt" content="The Bug Hunter landing page.">
+<meta name="bh-analytics" content="/api/analytics/collect">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Red+Hat+Display:wght@900&family=Red+Hat+Text:wght@400;500;700&display=swap" rel="stylesheet">
@@ -843,6 +850,7 @@
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/EVAL.md">Eval</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">Security</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/CONTRIBUTING.md">Contributing</a>
+          <a href="/privacy">Privacy</a>
           <a href="https://github.com/dk3yyyy/bug-hunter">Star on GitHub</a>
           <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/LICENSE">MIT License</a>
         </nav>
@@ -1029,6 +1037,22 @@
         }
       })
       .catch(function () { /* no count, button still works */ });
+  })();
+
+  /* ---- first-party page-view counter: no cookies, no IP, honours DNT/GPC ---- */
+  (function () {
+    var meta = document.querySelector('meta[name="bh-analytics"]');
+    if (!meta || navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true) return;
+    var path = location.pathname;
+    try {
+      var key = 'bh-pv:' + path;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch (e) { /* storage blocked; still count the view */ }
+    var body = JSON.stringify({ path: path });
+    if (navigator.sendBeacon) { navigator.sendBeacon(meta.content, body); return; }
+    fetch(meta.content, { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } })
+      .catch(function () {});
   })();
 })();
 </script>

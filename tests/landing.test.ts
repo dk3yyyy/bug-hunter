@@ -46,10 +46,20 @@ describe("landing page", () => {
     expect(html).toContain('href="https://github.com/dk3yyyy/bug-hunter"');
   });
 
-  it("ships share metadata and a favicon", () => {
+  it("ships share metadata, a favicon set and an analytics endpoint", () => {
     expect(html).toContain('property="og:image"');
+    expect(html).toContain("https://dk3yyyy.github.io/bug-hunter/og.png");
     expect(html).toContain('name="twitter:card"');
     expect(html).toContain('rel="icon"');
+    expect(html).toContain('rel="apple-touch-icon"');
+    expect(html).toContain('rel="manifest"');
+    expect(html).toContain('name="bh-analytics"');
+    expect(html).toContain('href="/privacy"');
+  });
+
+  it("has no images without alt text", () => {
+    const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
+    for (const img of imgs) expect(img, img).toMatch(/\balt=/);
   });
 
   it("keeps element ids unique", () => {

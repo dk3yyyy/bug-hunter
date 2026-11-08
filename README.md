@@ -290,6 +290,10 @@ Bug Hunter stores the correction per repo and applies it to future reviews.
 | GET | `/api/hunts/:id` | session or `X-BugHunter-Secret` | one hunt (JSON) |
 | GET | `/api/learnings?repo=owner/repo` | session or `X-BugHunter-Secret` | reviewer corrections for a repo |
 | DELETE | `/api/learnings/:id?repo=owner/repo` | session or `X-BugHunter-Secret` | remove one learning |
+| POST | `/api/analytics/collect` | none | cookie-less page-view beacon (`{ path }`), bot-filtered |
+| GET | `/api/analytics/summary?days=7` | session or `X-BugHunter-Secret` | page-view totals and top paths |
+| GET | `/privacy` | none | privacy policy |
+| GET | `/robots.txt`, `/sitemap.xml` | none | crawler metadata |
 
 With `"async": true`, `POST /api/hunt` returns `202` and
 `{ id, status: "running", repo, prNumber }`. Poll `GET /api/hunts/:id` until the
