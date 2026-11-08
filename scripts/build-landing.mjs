@@ -25,8 +25,10 @@ const html = readFileSync(new URL("../src/render/landing.html", import.meta.url)
   // "/dashboard" only exists on a running server. Point it at the hosted app,
   // or remove the nav item on the static site instead of shipping a 404.
   .replace(
-    '<a class="link" href="/dashboard">Dashboard</a>',
-    appUrl ? `<a class="link" href="${appUrl}/dashboard">Dashboard</a>` : "",
+    /<a href="\/dashboard" data-nav="dashboard">[\s\S]*?<\/a>/,
+    appUrl
+      ? `<a href="${appUrl}/dashboard" data-nav="dashboard"><span class="n">↗</span>Dashboard</a>`
+      : "",
   );
 
 mkdirSync("dist", { recursive: true });
