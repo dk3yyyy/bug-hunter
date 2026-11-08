@@ -84,3 +84,18 @@ describe("HuntStore spend", () => {
     expect(await store.spendSince("2026-01-01T00:00:00.000Z")).toBeCloseTo(0.07, 6);
   });
 });
+
+describe("HuntStore page views", () => {
+  it("counts views since a timestamp and ranks paths", async () => {
+    const store = createHuntStore("");
+    await store.recordPageview("/", "2026-01-01T00:00:00.000Z");
+    await store.recordPageview("/", "2026-01-02T00:00:00.000Z");
+    await store.recordPageview("/connect", "2026-01-02T00:00:00.000Z");
+    await store.recordPageview("/old", "2025-12-01T00:00:00.000Z");
+    const all = await store.pageviewSummary("2026-01-01T00:00:00.000Z");
+    expect(all.total).toBe(3);
+    expect(all.top[0]).toEqual({ path: "/", count: 2 });
+    const recent = await store.pageviewSummary("2026-01-02T00:00:00.000Z");
+    expect(recent.total).toBe(2);
+  });
+});

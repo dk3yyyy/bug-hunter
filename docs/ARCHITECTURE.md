@@ -129,6 +129,7 @@ The haunting level is deterministic:
 | `src/store.ts` | Hunt history, learnings, repo mappings and installed repos: Postgres + in-memory fallback |
 | `src/cost.ts` | Token accounting, model price table, spend caps |
 | `src/learnings.ts` | Reviewer corrections: parsing, normalisation, dedupe, prompt formatting |
+| `src/render/404.html` | Static not-found page for the GitHub Pages build |
 | `src/lint/` | Deterministic gitleaks/semgrep/eslint runner (CLI) |
 | `src/connect.ts` | Webhook URL rules and auto-connect helpers |
 | `src/github/` | Octokit clients, GitHub App auth and install flow, REST helpers, pure webhook filters |
@@ -188,13 +189,14 @@ durable when `DATABASE_URL` is set:
 | Reviewer learnings | Postgres/in-memory, 50 per repo, newest 20 used per hunt |
 | Per-repo user mappings | Postgres/in-memory, sealed |
 | Installed repos | Postgres/in-memory |
+| Page views | Postgres/in-memory, path + timestamp only (no IP, UA or cookie id) |
 | Seen webhook deliveries | process memory, 5,000 ids |
 | Per-PR rate windows | process memory, one hour |
 | In-flight hunts | process memory, one per PR |
 | Queue concurrency | 2 |
 
 With `DATABASE_URL`, `src/store.ts` creates the `hunts`, `repo_connections`,
-`learnings` and `app_repos` tables on first use if they do not exist. Hunt rows
+`learnings`, `app_repos` and `pageviews` tables on first use if they do not exist. Hunt rows
 store the full record as JSONB plus a `finished_at` timestamp. Without it, the same
 interface is backed by bounded in-memory maps.
 

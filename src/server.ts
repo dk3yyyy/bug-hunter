@@ -45,7 +45,8 @@ import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
 import { errorStatus, hauntingToStatus, nothingToHuntStatus, pendingStatus } from "./render/status";
-import { renderLanding, renderDashboard, renderSummoned, renderConnect, renderNotFound } from "./render/pages";
+import { renderLanding, renderDashboard, renderSummoned, renderConnect, renderNotFound, renderPrivacy } from "./render/pages";
+import { readFileSync as readAsset } from "node:fs";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel, resolveModelConfig } from "./llm/models";
@@ -1374,6 +1375,49 @@ app.get("/api/hunts/:id", async (c) => {
   return rec ? c.json(rec) : c.json({ error: "not found" }, 404);
 });
 
+// First-party analytics: a cookie-less page-view counter. No IP, no user agent,
+// no cookie id is stored — just the path and a timestamp.
+const CORS_ANALYTICS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+
+app.options("/api/analytics/collect", (c) => c.body(null, 204, CORS_ANALYTICS));
+app.post("/api/analytics/collect", async (c) => {
+  if (env.ANALYTICS_ENABLED === "false") return c.body(null, 204, CORS_ANALYTICS);
+  const ua = c.req.header("user-agent") ?? "";
+  // Ignore bots, link previews and command-line clients; keep the counter human.
+  if (!ua || /bot|crawler|spider|preview|fetch|curl|wget|headless|vitest/i.test(ua)) {
+    return c.body(null, 204, CORS_ANALYTICS);
+  }
+  const text = await c.req.text().catch(() => "");
+  let raw = "";
+  try {
+    const parsed = JSON.parse(text) as { path?: unknown };
+    if (typeof parsed.path === "string") raw = parsed.path;
+  } catch {
+    // sendBeacon may deliver text/plain; fall back to the referer.
+  }
+  if (!raw) raw = c.req.header("referer") ?? "/";
+  let path: string;
+  try {
+    path = new URL(raw, "https://example.invalid").pathname;
+  } catch {
+    path = "/";
+  }
+  if (!path.startsWith("/") || path.startsWith("/api/")) path = "/";
+  await hunts.recordPageview(path.slice(0, 200)).catch(() => undefined);
+  return c.body(null, 204, CORS_ANALYTICS);
+});
+
+app.get("/api/analytics/summary", async (c) => {
+  if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+  const days = Math.min(90, Math.max(1, Number(c.req.query("days") ?? 7) || 7));
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  return c.json({ days, ...(await hunts.pageviewSummary(since)) });
+});
+
 // Reviewer corrections ("learnings"), scoped per repo.
 app.get("/api/learnings", async (c) => {
   if (!isAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
@@ -1394,16 +1438,58 @@ app.get("/dashboard", async (c) => {
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
   const monthSpendUsd = await hunts.spendSince(monthStart.toISOString());
+  const trafficSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   return c.html(
-    renderDashboard(await hunts.list(50), await hunts.recentLearnings(20), {
-      monthSpendUsd,
-      capUsd: env.MONTHLY_COST_CAP_USD,
-    }),
+    renderDashboard(
+      await hunts.list(50),
+      await hunts.recentLearnings(20),
+      { monthSpendUsd, capUsd: env.MONTHLY_COST_CAP_USD },
+      await hunts.pageviewSummary(trafficSince),
+    ),
   );
 });
 app.get("/summoned", async (c) =>
   c.html(renderSummoned(await listRepos(), c.req.query("installation_id"))),
 );
+
+// Static social/PWA assets (served from docs/ so Pages and the server share them).
+const ASSET_TYPES: Record<string, string> = {
+  "/og.png": "image/png",
+  "/favicon.svg": "image/svg+xml",
+  "/favicon-32.png": "image/png",
+  "/apple-touch-icon.png": "image/png",
+  "/icon-192.png": "image/png",
+  "/icon-512.png": "image/png",
+  "/site.webmanifest": "application/manifest+json",
+};
+for (const [path, type] of Object.entries(ASSET_TYPES)) {
+  app.get(path, (c) => {
+    try {
+      const body = readAsset(new URL(`../docs${path}`, import.meta.url));
+      return c.body(body, 200, { "content-type": type, "cache-control": "public, max-age=86400" });
+    } catch {
+      return c.notFound();
+    }
+  });
+}
+
+app.get("/privacy", (c) => c.html(renderPrivacy()));
+
+app.get("/robots.txt", (c) => {
+  const origin = (env.PUBLIC_URL || env.APP_URL || new URL(c.req.url).origin).replace(/\/+$/, "");
+  return c.text(`User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`, 200, {
+    "content-type": "text/plain; charset=utf-8",
+  });
+});
+
+app.get("/sitemap.xml", (c) => {
+  const origin = (env.PUBLIC_URL || env.APP_URL || new URL(c.req.url).origin).replace(/\/+$/, "");
+  const urls = ["/", "/connect", "/privacy"];
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+    .map((u) => `  <url>\n    <loc>${origin}${u}</loc>\n  </url>`)
+    .join("\n")}\n</urlset>\n`;
+  return c.body(body, 200, { "content-type": "application/xml; charset=utf-8" });
+});
 
 // 404: HTML for pages, JSON for API clients.
 app.notFound((c) => {

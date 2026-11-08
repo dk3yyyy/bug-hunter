@@ -54,6 +54,76 @@ describe("server (in-process)", () => {
     expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
   });
 
+  it("serves the privacy policy", async () => {
+    const res = await app.request("/privacy");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Privacy,");
+    expect(html).toContain("What is stored");
+    expect(html).toContain("first-party");
+  });
+
+  it("serves robots.txt and sitemap.xml", async () => {
+    const robots = await app.request("/robots.txt");
+    expect(robots.status).toBe(200);
+    expect(await robots.text()).toContain("Sitemap:");
+
+    const sitemap = await app.request("/sitemap.xml");
+    expect(sitemap.status).toBe(200);
+    const xml = await sitemap.text();
+    expect(xml).toContain("<urlset");
+    expect(xml).toContain("/privacy");
+  });
+
+  it("serves favicon and social-card assets", async () => {
+    const svg = await app.request("/favicon.svg");
+    expect(svg.status).toBe(200);
+    expect(svg.headers.get("content-type")).toContain("image/svg");
+    expect(await svg.text()).toContain("<svg");
+
+    const og = await app.request("/og.png");
+    expect(og.status).toBe(200);
+    expect(og.headers.get("content-type")).toBe("image/png");
+  });
+
+  it("counts a page view and ignores bots", async () => {
+    const secret = "this-is-a-long-secret-123";
+    await app.request("/api/analytics/collect", {
+      method: "POST",
+      headers: { "user-agent": "Googlebot/2.1" },
+      body: JSON.stringify({ path: "/bot" }),
+    });
+    const before = (await (
+      await app.request("/api/analytics/summary", { headers: { "X-BugHunter-Secret": secret } })
+    ).json()) as { total: number };
+
+    const res = await app.request("/api/analytics/collect", {
+      method: "POST",
+      headers: { "user-agent": "Mozilla/5.0 (Macintosh) Safari/605.1" },
+      body: JSON.stringify({ path: "/connect" }),
+    });
+    expect(res.status).toBe(204);
+
+    const after = (await (
+      await app.request("/api/analytics/summary", { headers: { "X-BugHunter-Secret": secret } })
+    ).json()) as { days: number; total: number; top: Array<{ path: string; count: number }> };
+    expect(after.days).toBe(7);
+    expect(after.total).toBe(before.total + 1);
+    expect(after.top[0]?.path).toBe("/connect");
+
+    const denied = await app.request("/api/analytics/summary");
+    expect(denied.status).toBe(401);
+  });
+
+  it("gives each page a title and description", async () => {
+    const connect = await (await app.request("/connect")).text();
+    const dashboard = await (await app.request("/dashboard")).text();
+    expect(connect).toContain("<title>Bug Hunter — Connect a repo</title>");
+    expect(connect).toContain('name="description"');
+    expect(dashboard).toContain("<title>Bug Hunter — Dashboard</title>");
+    expect(dashboard).toContain("LLM spend");
+  });
+
   it("serves a styled 404 for pages and JSON for /api", async () => {
     const page = await app.request("/definitely-not-a-page");
     expect(page.status).toBe(404);

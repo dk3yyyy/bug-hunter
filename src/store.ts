@@ -26,6 +26,9 @@ export interface HuntStore {
   addInstalledRepo(repo: string): Promise<void>;
   removeInstalledRepo(repo: string): Promise<void>;
   listInstalledRepos(): Promise<string[]>;
+  /** First-party, cookie-less page-view counter (path + time only). */
+  recordPageview(path: string, at?: string): Promise<void>;
+  pageviewSummary(sinceIso: string): Promise<{ total: number; top: Array<{ path: string; count: number }> }>;
   close(): Promise<void>;
 }
 
@@ -100,6 +103,7 @@ class MemoryHuntStore implements HuntStore {
   }
 
   private installedRepos = new Set<string>();
+  private pageviews: Array<{ path: string; at: string }> = [];
 
   async addInstalledRepo(repo: string): Promise<void> {
     this.installedRepos.add(repo.toLowerCase());
@@ -111,6 +115,26 @@ class MemoryHuntStore implements HuntStore {
 
   async listInstalledRepos(): Promise<string[]> {
     return [...this.installedRepos].sort();
+  }
+
+  async recordPageview(path: string, at = new Date().toISOString()): Promise<void> {
+    this.pageviews.push({ path, at });
+    if (this.pageviews.length > 20_000) this.pageviews.splice(0, this.pageviews.length - 20_000);
+  }
+
+  async pageviewSummary(sinceIso: string): Promise<{ total: number; top: Array<{ path: string; count: number }> }> {
+    const counts = new Map<string, number>();
+    let total = 0;
+    for (const pv of this.pageviews) {
+      if (pv.at < sinceIso) continue;
+      total += 1;
+      counts.set(pv.path, (counts.get(pv.path) ?? 0) + 1);
+    }
+    const top = [...counts.entries()]
+      .map(([path, count]) => ({ path, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    return { total, top };
   }
 
   async deleteLearning(repo: string, id: string): Promise<boolean> {
@@ -162,7 +186,13 @@ class PgHuntStore implements HuntStore {
            CREATE TABLE IF NOT EXISTS app_repos (
              repo TEXT PRIMARY KEY,
              added_at TIMESTAMPTZ NOT NULL DEFAULT now()
-           );`,
+           );
+           CREATE TABLE IF NOT EXISTS pageviews (
+             id BIGSERIAL PRIMARY KEY,
+             path TEXT NOT NULL,
+             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+           );
+           CREATE INDEX IF NOT EXISTS pageviews_created_at_idx ON pageviews (created_at DESC);`,
         )
         .then(() => undefined)
         .catch((e) => {
@@ -332,6 +362,27 @@ class PgHuntStore implements HuntStore {
       "SELECT repo FROM app_repos ORDER BY repo",
     );
     return rows.map((r) => r.repo);
+  }
+
+  async recordPageview(path: string, at = new Date().toISOString()): Promise<void> {
+    await this.ensure();
+    await this.pool.query("INSERT INTO pageviews (path, created_at) VALUES ($1, $2)", [path, at]);
+  }
+
+  async pageviewSummary(sinceIso: string): Promise<{ total: number; top: Array<{ path: string; count: number }> }> {
+    await this.ensure();
+    const totalRow = await this.pool.query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM pageviews WHERE created_at >= $1",
+      [sinceIso],
+    );
+    const { rows } = await this.pool.query<{ path: string; n: string }>(
+      "SELECT path, count(*)::text AS n FROM pageviews WHERE created_at >= $1 GROUP BY path ORDER BY count(*) DESC LIMIT 10",
+      [sinceIso],
+    );
+    return {
+      total: Number(totalRow.rows[0]?.n ?? 0),
+      top: rows.map((r) => ({ path: r.path, count: Number(r.n) })),
+    };
   }
 
   async recentLearnings(limit: number): Promise<Learning[]> {

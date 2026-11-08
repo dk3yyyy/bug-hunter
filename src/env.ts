@@ -71,6 +71,8 @@ const schema = z.object({
   MONTHLY_COST_CAP_USD: z.coerce.number().min(0).default(0),
   // Run deterministic linters (gitleaks/semgrep/eslint) where a checkout exists.
   LINT_ENABLED: z.string().default(""),
+  // First-party, cookie-less page-view counter. "false" disables collection.
+  ANALYTICS_ENABLED: z.string().default("true"),
   BOT_HANDLE: z.string().default("bughunter"),
 }).superRefine((v, ctx) => {
   if (v.N8N_SHARED_SECRET === "change-me-too") {
