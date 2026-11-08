@@ -13,7 +13,7 @@ describe("landing page", () => {
   });
 
   it("describes the shipped toolchain", () => {
-    expect(html).toContain('id="features"');
+    expect(html).toContain('id="toolkit"');
     for (const feature of [
       "Linked issues",
       "Sequence diagrams",
@@ -54,6 +54,13 @@ describe("landing page", () => {
   it("keeps the connect/repo anchors the build script rewrites", () => {
     expect(html).toContain('href="#connect"');
     expect(html).toContain('href="#repo"');
-    expect(html).toContain('<a class="link" href="/dashboard">Dashboard</a>');
+    expect(html).toContain('href="/dashboard" data-nav="dashboard"');
+  });
+
+  it("uses the dossier layout: index rail and numbered sections", () => {
+    expect(html).toContain('class="rail"');
+    for (const section of ["how", "look", "toolkit", "bestiary", "possession", "automation", "run"]) {
+      expect(html, section).toContain(`id="${section}"`);
+    }
   });
 });
