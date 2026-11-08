@@ -45,7 +45,7 @@ import { annotateDiff } from "./diff/annotate";
 import { renderSeance, escapeHtml } from "./render/seance";
 import { renderInline, renderReviewBody } from "./render/inline";
 import { errorStatus, hauntingToStatus, nothingToHuntStatus, pendingStatus } from "./render/status";
-import { renderLanding, renderDashboard, renderSummoned, renderConnect } from "./render/pages";
+import { renderLanding, renderDashboard, renderSummoned, renderConnect, renderNotFound } from "./render/pages";
 import { scrubSecrets } from "./security";
 import { notifyHunt, type HuntNotifyPayload } from "./n8n";
 import { getModel, resolveModelConfig } from "./llm/models";
@@ -1404,6 +1404,12 @@ app.get("/dashboard", async (c) => {
 app.get("/summoned", async (c) =>
   c.html(renderSummoned(await listRepos(), c.req.query("installation_id"))),
 );
+
+// 404: HTML for pages, JSON for API clients.
+app.notFound((c) => {
+  if (c.req.path.startsWith("/api/")) return c.json({ error: "not found" }, 404);
+  return c.html(renderNotFound(), 404);
+});
 
 // Only start the server when this file is run directly (not when imported by tests).
 import { fileURLToPath } from "node:url";

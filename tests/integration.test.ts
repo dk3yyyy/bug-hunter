@@ -53,6 +53,18 @@ describe("server (in-process)", () => {
     expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
   });
 
+  it("serves a styled 404 for pages and JSON for /api", async () => {
+    const page = await app.request("/definitely-not-a-page");
+    expect(page.status).toBe(404);
+    const html = await page.text();
+    expect(html).toContain("This page is a");
+    expect(html).toContain('href="/connect"');
+
+    const api = await app.request("/api/definitely-not-a-route");
+    expect(api.status).toBe(404);
+    expect(((await api.json()) as { error: string }).error).toBe("not found");
+  });
+
   it("rejects /api/hunt without the shared secret (401)", async () => {
     const res = await app.request("/api/hunt", {
       method: "POST",

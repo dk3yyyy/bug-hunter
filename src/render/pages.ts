@@ -17,9 +17,10 @@ export function renderLanding(opts: { connectUrl: string; repoUrl: string }): st
 
 const SHELL_CSS = `
 :root{
-  --bg:#14101b;--surface:#1d1726;--ink:#efe9df;--muted:#a396ad;--line:#3a2f45;
-  --accent:#e9a15f;--accent-ink:#191220;--crit:#f0a35e;
+  --bg:#100d15;--surface:#161020;--ink:#ece6dc;--muted:#a396ad;--dim:#8f8399;--line:#322a3d;--line-soft:#241e2e;
+  --accent:#e9a15f;--accent-ink:#191220;--crit:#f0a35e;--lilac:#cbb8f0;--calm:#a9dcc8;--danger:#ff8f7f;
   --font-display:"Red Hat Display",system-ui,sans-serif;
+  --font-serif:"Instrument Serif",Georgia,serif;
   --font-body:"Red Hat Text",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   --ease:cubic-bezier(.2,.7,.2,1);
@@ -27,61 +28,86 @@ const SHELL_CSS = `
 }
 *{box-sizing:border-box}
 html,body{overflow-x:clip}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--font-body);min-height:100vh}
-:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+body{
+  margin:0;min-height:100vh;color:var(--ink);font:16px/1.65 var(--font-body);
+  background:radial-gradient(circle at 1px 1px,rgba(236,230,220,.05) 1px,transparent 0) 0 0/26px 26px,var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent);color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
-.wrap{width:min(1120px,100% - 3rem);margin:0 auto;padding:32px 0 56px}
-.bar{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:1rem .5rem;flex-wrap:wrap}
-.brand{font-family:var(--font-display);font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;font-size:1.05rem;color:var(--ink)}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+.wrap{width:min(1180px,100% - clamp(2rem,7vw,5rem));margin:0 auto;padding:0 0 3rem}
+.bar{display:flex;align-items:center;gap:1.4rem;padding:1.1rem 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{display:inline-flex;align-items:baseline;gap:.3rem;font-family:var(--font-display);font-weight:900;font-size:1.05rem;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink)}
+.brand .mark{color:var(--accent)}
 .brand:hover{text-decoration:none}
-.nav{display:flex;gap:1.2rem;flex-wrap:wrap}
-.nav a{color:var(--muted);font-size:.95rem}
+.nav{display:flex;gap:1.2rem;flex-wrap:wrap;margin-left:auto}
+.nav a{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .nav a:hover{color:var(--ink);text-decoration:none}
-h1,h2{font-family:var(--font-display);font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;line-height:1.04;margin:0;text-wrap:balance}
-h1{font-size:clamp(2rem,4.2vw,3.2rem);margin:28px 0 10px}
-h2{font-size:clamp(1.2rem,2vw,1.5rem);margin:0 0 12px}
-.lede{color:var(--muted);max-width:62ch;margin:0 0 8px}
-p{max-width:68ch}
-.hint{color:var(--muted);font-size:13px;line-height:1.5;margin:6px 0 14px}
-.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:24px;align-items:start}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;margin:16px 0}
+.tag{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:.2rem .5rem}
+.eyebrow{display:block;margin:2.4rem 0 0;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.eyebrow b{color:var(--accent);font-weight:500}
+h1,h2{font-family:var(--font-display);font-weight:900;text-transform:uppercase;letter-spacing:-.035em;line-height:1;margin:0;text-wrap:balance}
+h1{font-size:clamp(2.2rem,5vw,3.6rem);margin:.7rem 0 .4rem}
+h1 em{font-family:var(--font-serif);font-style:italic;font-weight:400;text-transform:none;letter-spacing:-.02em;color:var(--accent)}
+h2{font-size:1.15rem;margin:2.2rem 0 .5rem;letter-spacing:-.01em}
+h3{font-family:var(--font-display);font-weight:900;font-size:1rem;text-transform:uppercase;letter-spacing:.01em;margin:0 0 .4rem}
+.lede{color:var(--muted);max-width:62ch;margin:.4rem 0 0}
+p{max-width:70ch}
+.hint{color:var(--dim);font-size:.82rem;line-height:1.55;margin:.4rem 0 .9rem}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1.6rem;align-items:start}
+.card{background:rgba(22,16,32,.55);border:1px solid var(--line);border-radius:2px;padding:1.3rem;margin:1rem 0}
 .cols .card{margin:0}
 .card p,.card label{color:var(--muted)}
-label{display:block;font-size:.92rem;margin:0 0 6px}
-input{display:block;width:100%;min-height:46px;margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;transition:border-color .15s var(--ease)}
+.panel{border:1px solid var(--line);border-radius:2px;margin:.8rem 0 0;overflow:hidden}
+label{display:block;margin:.9rem 0 .35rem;font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+input,textarea{display:block;width:100%;min-height:46px;margin:0 0 .7rem;padding:.65rem .8rem;border:1px solid var(--line);border-radius:2px;background:transparent;color:var(--ink);font:inherit;transition:border-color .15s var(--ease)}
 input:focus{border-color:var(--accent);outline:none}
-button,.btn{display:inline-flex;align-items:center;gap:.5rem;background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;min-height:46px;padding:11px 22px;font:700 15px/1 var(--font-body);cursor:pointer;text-decoration:none;transition:transform .12s var(--ease),filter .15s var(--ease)}
-button:hover,.btn:hover{filter:brightness(1.06);text-decoration:none}
+button,.btn{display:inline-flex;align-items:center;gap:.5rem;background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:2px;min-height:46px;padding:.65rem 1.15rem;font:700 .9rem/1 var(--font-body);cursor:pointer;text-decoration:none;transition:transform .12s var(--ease),background-color .15s var(--ease)}
+button:hover,.btn:hover{background:#f0b075;text-decoration:none}
 button:active,.btn:active{transform:translateY(1px)}
 button:disabled{opacity:.55;cursor:not-allowed}
-.btn-ghost{display:inline-flex;align-items:center;min-height:46px;padding:11px 22px;border:2px solid var(--line);border-radius:999px;color:var(--ink);font-weight:700;text-decoration:none}
-.btn-ghost:hover{border-color:var(--accent);text-decoration:none}
-.result{margin-top:12px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:14px;color:var(--ink)}
+.btn-ghost{display:inline-flex;align-items:center;min-height:46px;padding:.65rem 1.1rem;border:1px solid var(--line);border-radius:2px;color:var(--ink);font-weight:500;font-size:.9rem;text-decoration:none}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+.result{margin-top:.9rem;padding:.75rem .9rem;border:1px solid var(--line);border-left:2px solid var(--accent);font-size:.88rem;color:var(--ink)}
 .result:empty{display:none}
-details{margin:0 0 18px}
-summary{cursor:pointer;font-weight:700;color:var(--muted);margin-bottom:10px}
+details{margin:0 0 1rem}
+summary{cursor:pointer;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:.8rem}
 summary:hover{color:var(--ink)}
-code,.mono{font-family:var(--font-mono);font-size:.86em;background:color-mix(in srgb,var(--ink) 8%,transparent);padding:1px 5px;border-radius:4px}
-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.94rem}
-th,td{text-align:left;border-bottom:1px solid var(--line);padding:11px 12px;vertical-align:top}
-th{color:var(--muted);font-weight:500}
-.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 8px}
-.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
-.stat .n{display:block;font-family:var(--font-display);font-weight:900;font-size:2rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
-.stat .lbl{color:var(--muted);font-size:.82rem;margin-top:6px}
-.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+code,.mono{font-family:var(--font-mono);font-size:.84em;background:rgba(236,230,220,.07);padding:1px 5px;border-radius:2px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;border-bottom:1px solid var(--line-soft);padding:.65rem .8rem;vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:1.6rem 0 .8rem}
+.stat{background:var(--bg);padding:1rem 1.1rem}
+.stat .n{display:block;font-family:var(--font-display);font-weight:900;font-size:1.7rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.stat .lbl{display:block;margin-top:.35rem;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.badge{display:inline-block;padding:.18rem .5rem;border-radius:2px;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
 .b-possessed{background:var(--crit);color:#191220}
 .b-haunted{background:#5e3140;color:#ffd3dd}
 .b-restless{background:#4a3760;color:#e4d6ff}
 .b-whispers{background:#352c4a;color:#d3c6f2}
 .b-clear{background:#2c3a35;color:#b7e6d6}
-.foot{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+.foot{margin-top:3.5rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--dim);font-size:.8rem}
+.foot-links{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;margin-top:.7rem;font-family:var(--font-mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase}
+.foot-links a{color:var(--muted)}
+.foot-links a:hover{color:var(--accent)}
+.empty{padding:1.1rem 1.3rem;color:var(--muted);font-size:.9rem}
+.empty code{color:var(--ink)}
 .reveal{animation:rise .5s var(--ease) both}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.reveal{animation:none}}
-@media (max-width:820px){.cols{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:480px){.grid{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){
+  .cols{grid-template-columns:minmax(0,1fr)}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nav{margin-left:0}
+}
+@media (max-width:480px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .tag{display:none}
+}
 `;
 
 function shell(title: string, body: string): string {
@@ -91,24 +117,38 @@ function shell(title: string, body: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#14101b">
+<meta name="theme-color" content="#100d15">
+<meta name="description" content="Bug Hunter: an open-source AI pull request reviewer. Bring your own model; verified findings, inline fixes and a themed Séance Report.">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="An open-source AI code reviewer with a skeptical second pass and a themed Séance Report.">
+<meta property="og:type" content="website">
 <title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@900&family=Red+Hat+Text:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Red+Hat+Display:wght@900&family=Red+Hat+Text:wght@400;500;700&display=swap" rel="stylesheet">
 <style>${SHELL_CSS}</style>
 </head>
 <body><div class="wrap">
 <header class="bar">
-  <a class="brand" href="/">Bug Hunter</a>
+  <a class="brand" href="/">Bug<span class="mark">✳</span>Hunter</a>
   <nav class="nav" aria-label="Main">
     <a href="/">Landing</a>
     <a href="/connect">Connect</a>
     <a href="/dashboard">Dashboard</a>
   </nav>
+  <span class="tag">Open source · MIT</span>
 </header>
 <main>${body}</main>
-<footer class="foot">Bug Hunter · powered by your model · <a href="/">landing</a></footer>
+<footer class="foot">
+  <p>Bug Hunter · powered by your model · no telemetry.</p>
+  <nav class="foot-links" aria-label="Footer">
+    <a href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Docs</a>
+    <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/QUICKSTART.md">Quickstart</a>
+    <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/docs/CONFIGURATION.md">Configuration</a>
+    <a href="https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md">Security</a>
+    <a href="https://github.com/dk3yyyy/bug-hunter">GitHub</a>
+  </nav>
+</footer>
 </div></body>
 </html>`;
 }
@@ -162,7 +202,7 @@ ${rows
   )
   .join("")}
 </tbody></table>`
-    : `<div class="card"><p>No hunts yet. Open a pull request or POST <code>/api/hunt</code> to summon the first one.</p></div>`;
+    : `<div class="empty">No hunts yet. Open a pull request or POST <code>/api/hunt</code> to summon the first one.</div>`;
 
   const learningRows = learnings.length
     ? `<table><thead><tr><th>Repo</th><th>Learning</th><th>Source</th><th>Added</th></tr></thead><tbody>
@@ -177,12 +217,13 @@ ${learnings
   )
   .join("")}
 </tbody></table>`
-    : `<div class="card"><p>No reviewer corrections yet. Reply <code>@bot wrong: &lt;why&gt;</code> on a review comment to teach one.</p></div>`;
+    : `<div class="empty">No reviewer corrections yet. Reply <code>@bot wrong: &lt;why&gt;</code> on a review comment to teach one.</div>`;
 
   return shell(
     "Bug Hunter — Dashboard",
-    `<h1 class="reveal">Dashboard</h1>
-<p class="lede">Every hunt this server has run${learnings.length ? ", and the corrections reviewers taught it" : ""}.</p>
+    `<span class="eyebrow"><b>Ledger</b> · every hunt this server has run</span>
+<h1>Dashboard<em>.</em></h1>
+<p class="lede">Hunts, spend and reviewer corrections${learnings.length ? " — including what this repo taught the hunter" : ""}.</p>
 <div class="grid">
   <div class="stat"><span class="n">${stats.hunts}</span><span class="lbl">hunts run</span></div>
   <div class="stat"><span class="n">${stats.spirits}</span><span class="lbl">spirits found</span></div>
@@ -193,10 +234,10 @@ ${learnings
   <div class="stat"><span class="n">${formatUsd(stats.avgCost)}</span><span class="lbl">avg cost / hunt</span></div>
   <div class="stat"><span class="n">${stats.tokens.toLocaleString("en-US")}</span><span class="lbl">tokens${stats.hunts ? ` (last ${stats.hunts})` : ""}</span></div>
 </div>
-<h2 style="margin-top:32px">Recent hunts</h2>
-${table}
-<h2 style="margin-top:32px">Learnings</h2>
-${learningRows}`,
+<h2>Recent hunts</h2>
+<div class="panel">${table}</div>
+<h2>Learnings</h2>
+<div class="panel">${learningRows}</div>`,
   );
 }
 
@@ -212,7 +253,8 @@ export function renderSummoned(repos: string[] = [], installationId?: string): s
 
   return shell(
     "Bug Hunter — Summoned",
-    `<h1 class="reveal">The hunter is summoned.</h1>
+    `<span class="eyebrow"><b>Install</b> · the app is connected</span>
+<h1>The hunter is <em>summoned.</em></h1>
 <p class="lede">${installationId ? `Installation <code>${escapeHtml(installationId)}</code> connected. ` : ""}Open a pull request and watch the hunt begin.</p>
 <div class="card"><h2>Connected repos</h2>${repoList}</div>
 <p><a class="btn-ghost" href="/dashboard">View recent hunts →</a></p>`,
@@ -280,7 +322,8 @@ export function renderConnect(opts: {
       : "Shared secret";
 
   const body = `
-<h1 class="reveal">Connect a repo.</h1>
+<span class="eyebrow"><b>Setup</b> · connect a repo</span>
+<h1>Connect a <em>repo.</em></h1>
 <p class="lede">Hunt a pull request right now, or wire a repo so every new PR is reviewed and turned into a 🔮 Séance Report.</p>
 ${notice}
 ${loginCard}
@@ -407,4 +450,25 @@ ${loginCard}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** 404 page, in the same dossier shell as the rest of the site. */
+export function renderNotFound(): string {
+  return shell(
+    "Bug Hunter — Not found",
+    `<span class="eyebrow"><b>404</b> · nothing haunts this URL</span>
+<h1>This page is a <em>ghost.</em></h1>
+<p class="lede">The URL you followed does not exist on this server. It may have moved, or it may never have been here at all.</p>
+<div class="cols">
+  <div class="card">
+    <h2>Try instead</h2>
+    <p><a class="btn-ghost" href="/">Landing</a> <a class="btn-ghost" href="/connect">Connect a repo</a> <a class="btn-ghost" href="/dashboard">Dashboard</a></p>
+  </div>
+  <div class="card">
+    <h2>Documentation</h2>
+    <p>Quickstart, configuration, self-hosting, the CLI and the eval harness live in the repository.</p>
+    <p><a class="btn" href="https://github.com/dk3yyyy/bug-hunter/tree/main/docs">Read the docs →</a></p>
+  </div>
+</div>`,
+  );
 }
