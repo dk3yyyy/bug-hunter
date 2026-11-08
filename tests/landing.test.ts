@@ -40,6 +40,12 @@ describe("landing page", () => {
     expect(html).toContain("https://github.com/dk3yyyy/bug-hunter/blob/main/SECURITY.md");
   });
 
+  it("ships share metadata and a favicon", () => {
+    expect(html).toContain('property="og:image"');
+    expect(html).toContain('name="twitter:card"');
+    expect(html).toContain('rel="icon"');
+  });
+
   it("keeps element ids unique", () => {
     const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
